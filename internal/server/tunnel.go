@@ -212,8 +212,11 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ticket": tok, "protocol": m.Protocol, "name": m.Name})
 }
 
-// takeTicket returns and removes a ticket that belongs to uid.
-func (s *Server) takeTicket(tok string, uid int64) (ticket, bool) {
+// takeTicket returns and removes a ticket that is still good.
+func (s *Server) takeTicket(tok string) (ticket, bool) {
+	if tok == "" {
+		return ticket{}, false
+	}
 	s.ticketMu.Lock()
 	defer s.ticketMu.Unlock()
 	t, ok := s.tickets[tok]
@@ -221,7 +224,7 @@ func (s *Server) takeTicket(tok string, uid int64) (ticket, bool) {
 		return ticket{}, false
 	}
 	delete(s.tickets, tok)
-	if t.uid != uid || time.Now().After(t.expires) {
+	if time.Now().After(t.expires) {
 		return ticket{}, false
 	}
 	return t, true
@@ -314,8 +317,11 @@ const (
 // handleTunnel is the WebSocket tunnel between the browser and guacd.
 func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	uid := actorID(ctx)
-	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"guacamole"}})
+	// The ticket is the credential (single use, 60 s, made by a signed-in POST
+	// /connect), so any origin may open the socket: the app's web view has none.
+	// A caller who is signed in must be the ticket's own person.
+	caller, _ := s.resolveUser(r)
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"guacamole"}, InsecureSkipVerify: true})
 	if err != nil {
 		return
 	}
@@ -333,11 +339,15 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		ws.Close(websocket.StatusNormalClosure, "")
 	}
 	q := r.URL.Query()
-	t, ok := s.takeTicket(q.Get("ticket"), uid)
+	t, ok := s.takeTicket(q.Get("ticket"))
+	if ok && caller != nil && caller.ID != t.uid {
+		ok = false
+	}
 	if !ok {
 		refuse("This connection link has expired. Connect again.", statusClientForbidden)
 		return
 	}
+	uid := t.uid
 	m, err := s.store.GetMachine(ctx, uid, t.machineID)
 	if err != nil {
 		refuse("That machine is gone.", statusClientForbidden)

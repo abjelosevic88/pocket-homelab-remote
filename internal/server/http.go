@@ -30,6 +30,8 @@ func (s *Server) Router() http.Handler {
 
 	r.Get("/pocket-ask.js", s.core.AskWidget("remote"))
 	r.Get("/healthz", s.handleHealth)
+	r.Get("/app-signin", s.handleAppSignin)
+	r.Post("/app-signin", s.handleAppSigninAllow)
 	r.Get("/readyz", s.handleReady)
 	r.Get("/api/health", s.handleHealth)
 	if s.cfg.MetricsEnabled {
@@ -43,6 +45,10 @@ func (s *Server) Router() http.Handler {
 		r.Get("/auth/status", s.handleAuthStatus)
 		r.Get("/auth/oidc/start", s.handleOIDCStart)
 		r.Get("/auth/oidc/callback", s.handleOIDCCallback)
+		r.Post("/auth/app/exchange", s.handleAppExchange)
+		// the session tunnel: its one-time ticket is the credential (the app's
+		// web view has no cookie); a signed-in caller must be the ticket's person
+		r.Get("/tunnel", s.handleTunnel)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
@@ -61,7 +67,6 @@ func (s *Server) Router() http.Handler {
 			r.Post("/machines/{id}/check", s.handleCheckMachine)
 			r.Post("/machines/{id}/wake", s.handleWake)
 			r.Post("/machines/{id}/connect", s.handleConnect)
-			r.Get("/tunnel", s.handleTunnel)
 			r.Post("/machines/{id}/trust-again", s.handleForgetHostKey)
 			r.Get("/tailnet", s.handleTailnet)
 

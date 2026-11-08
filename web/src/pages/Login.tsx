@@ -13,6 +13,10 @@ export default function Login({ mode }: { mode: 'login' | 'setup' }) {
   const [err, setErr] = useState(() => new URLSearchParams(window.location.search).get('error') || '')
   const [busy, setBusy] = useState(false)
 
+  // ?next=/app-signin…: the iPhone app's sign-in continues on the server's own page after this
+  const serverNext = new URLSearchParams(window.location.search).get('next') || ''
+  const appNext = serverNext.startsWith('/app-signin?') ? serverNext : ''
+  if (status && user && appNext) { window.location.replace(appNext); return null }
   if (status && user) return <Navigate to={(loc.state as { from?: string })?.from || '/'} replace />
   if (status && mode === 'setup' && !status.needs_setup) return <Navigate to="/login" replace />
   if (status && mode === 'login' && status.needs_setup) return <Navigate to="/setup" replace />
@@ -20,7 +24,7 @@ export default function Login({ mode }: { mode: 'login' | 'setup' }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true); setErr('')
-    try { await api.post(`${V1}/auth/${mode}`, form); await refresh(); navigate(from, { replace: true }) } catch (e: unknown) { setErr((e as Error).message) } finally { setBusy(false) }
+    try { await api.post(`${V1}/auth/${mode}`, form); await refresh(); if (appNext) window.location.replace(appNext); else navigate(from, { replace: true }) } catch (e: unknown) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const from = (loc.state as { from?: string })?.from || '/'
   const sso = mode === 'login' && status?.oidc
@@ -36,7 +40,7 @@ export default function Login({ mode }: { mode: 'login' | 'setup' }) {
           <p className="login-tagline">{mode === 'setup' ? 'Welcome! Create the first account to get started.' : 'Your own computers, from anywhere on your tailnet.'}</p>
         </div>
         {sso && <>
-          <a className="btn primary lg block" href={`${V1}/auth/oidc/start?next=${encodeURIComponent(from)}`}>
+          <a className="btn primary lg block" href={`${V1}/auth/oidc/start?next=${encodeURIComponent(appNext || from)}`}>
             <Icon name="key" size={16} />Sign in with {status?.oidc_name || 'Pocket Core'}
           </a>
           <div className="login-or"><span>or with a password</span></div>
