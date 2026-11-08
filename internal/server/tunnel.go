@@ -249,6 +249,11 @@ func (s *Server) guacParams(m store.Machine) (map[string]string, error) {
 		p["color-depth"] = strconv.Itoa(o.ColorDepth)
 	}
 	p["read-only"] = b(o.ReadOnly)
+	if m.Protocol != "ssh" {
+		// lossless unless the person chose to save data: guacd otherwise sends busy
+		// parts of the screen as JPEG/WebP, which blurs text and icons
+		p["force-lossless"] = b(!o.SaveData)
+	}
 	switch m.Protocol {
 	case "vnc":
 		p["password"] = pass

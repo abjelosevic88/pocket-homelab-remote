@@ -84,6 +84,7 @@ type MachineOptions struct {
 	ColorScheme  string `json:"color_scheme,omitempty"`  // terminal: gray-black | black-white | white-black | green-black
 	SwapRedBlue  bool   `json:"swap_red_blue,omitempty"` // VNC servers that send BGR
 	RemoteCursor bool   `json:"remote_cursor,omitempty"` // VNC: draw the cursor on the machine
+	SaveData     bool   `json:"save_data,omitempty"`     // allow JPEG/WebP for busy parts: less data, a softer picture
 }
 
 // ParseOptions reads a machine's options (unknown or broken JSON = defaults).
