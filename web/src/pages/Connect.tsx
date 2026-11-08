@@ -214,7 +214,7 @@ export default function Connect() {
     // a phone held upright still gets a landscape desktop; a computer gets its window's size
     const w = touch && portrait ? 1280 : Math.round(host.clientWidth * (m.protocol === 'ssh' ? 1 : dpr))
     const h = touch && portrait ? 800 : Math.round(host.clientHeight * (m.protocol === 'ssh' ? 1 : dpr))
-    const q = new URLSearchParams({ ticket: r.ticket, width: String(w), height: String(h), dpi: String(Math.round(96 * (m.protocol === 'ssh' ? 1 : dpr))), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    const q = new URLSearchParams({ ticket: r.ticket, width: String(w), height: String(h), dpi: String(Math.round(96 * (m.protocol === 'ssh' || (touch && portrait) ? 1 : dpr))), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     client.connect(q.toString())
   }, [m, teardown, touch, rescale])
 

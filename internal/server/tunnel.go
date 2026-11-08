@@ -360,6 +360,12 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		Width: atoi("width", 1280, 200, 8192), Height: atoi("height", 800, 200, 8192), DPI: atoi("dpi", 96, 48, 400),
 		Timezone: firstNonEmpty(q.Get("timezone"), time.Now().Location().String()), ClientName: "Pocket Remote",
 	}
+	if m.Protocol == "rdp" && cfg.DPI > 96 {
+		// Without its own dpi guacd shrinks the desktop to 96 DPI, and a Retina
+		// browser then stretches every pixel 2× (blurry). With the screen's real
+		// DPI the desktop gets every pixel; Windows scales itself to match.
+		params["dpi"] = strconv.Itoa(cfg.DPI)
+	}
 	if m.Protocol == "rdp" && store.ParseOptions(m.Options).Audio {
 		cfg.Audio = []string{"audio/L16", "audio/L8"}
 	}
