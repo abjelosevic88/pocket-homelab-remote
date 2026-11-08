@@ -262,3 +262,5 @@ span.block { display: block; }
 .rs-hint { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 15; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 12px; border-radius: 99px; background: rgba(255, 255, 255, .12); color: #e8e8ee; white-space: nowrap; pointer-events: none; }
 .mf-warn { display: flex; gap: 6px; align-items: flex-start; margin: -4px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--warning-soft); line-height: 1.45; }
 .mf-warn > .icon { color: var(--warning); margin-top: 2px; flex-shrink: 0; }
+.mf-switch { display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; min-width: 0; line-height: 1.35; }
+.mf-switch .switch { flex-shrink: 0; }

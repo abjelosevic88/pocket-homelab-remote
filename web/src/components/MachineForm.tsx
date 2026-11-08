@@ -121,19 +121,24 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
             <Field group label="Colours"><Select ariaLabel="Terminal colours" value={opt.color_scheme || 'gray-black'} onChange={v => setOpt({ ...opt, color_scheme: v })} options={[{ value: 'gray-black', label: 'Grey on black' }, { value: 'green-black', label: 'Green on black' }, { value: 'white-black', label: 'White on black' }, { value: 'black-white', label: 'Black on white' }]} /></Field>
           </>}
           <div className="mf-switches">
-            <Switch checked={!!opt.read_only} onChange={v => setOpt({ ...opt, read_only: v })} label="Watch only (no mouse or keys)" />
+            <Toggle checked={!!opt.read_only} onChange={v => setOpt({ ...opt, read_only: v })} label="Watch only (no mouse or keys)" />
             {p === 'rdp' && <>
-              <Switch checked={!!opt.ignore_cert} onChange={v => setOpt({ ...opt, ignore_cert: v })} label="Accept the PC's own certificate" />
-              <Switch checked={!!opt.resize} onChange={v => setOpt({ ...opt, resize: v })} label="Follow the window size" />
-              <Switch checked={!!opt.audio} onChange={v => setOpt({ ...opt, audio: v })} label="Play the PC's sound here" />
+              <Toggle checked={!!opt.ignore_cert} onChange={v => setOpt({ ...opt, ignore_cert: v })} label="Accept the PC's own certificate" />
+              <Toggle checked={!!opt.resize} onChange={v => setOpt({ ...opt, resize: v })} label="Follow the window size" />
+              <Toggle checked={!!opt.audio} onChange={v => setOpt({ ...opt, audio: v })} label="Play the PC's sound here" />
             </>}
             {p === 'vnc' && <>
-              <Switch checked={!!opt.remote_cursor} onChange={v => setOpt({ ...opt, remote_cursor: v })} label="Draw the pointer on the computer" />
-              <Switch checked={!!opt.swap_red_blue} onChange={v => setOpt({ ...opt, swap_red_blue: v })} label="Swap red and blue (odd colours)" />
+              <Toggle checked={!!opt.remote_cursor} onChange={v => setOpt({ ...opt, remote_cursor: v })} label="Draw the pointer on the computer" />
+              <Toggle checked={!!opt.swap_red_blue} onChange={v => setOpt({ ...opt, swap_red_blue: v })} label="Swap red and blue (odd colours)" />
             </>}
           </div>
         </div>}
       </form>
     </Modal>
   )
+}
+
+/** A switch with its words beside it; the words toggle it too. */
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return <label className="mf-switch"><Switch checked={checked} onChange={onChange} label={label} /><span>{label}</span></label>
 }
