@@ -1,0 +1,23 @@
+[Unit]
+Description=Pocket Remote — your computers from a phone or browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pocket-remote
+Group=pocket-remote
+ExecStart=/usr/local/bin/pocket-remote
+Environment=DATA_DIR=/var/lib/pocket-remote
+Environment=PORT=8080
+Environment=BASE_URL=https://remote.example.com
+Environment=SECURE_COOKIES=true
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pocket-remote
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

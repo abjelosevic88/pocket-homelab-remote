@@ -1,0 +1,20 @@
+{
+  "name": "Pocket Remote",
+  "short_name": "Remote",
+  "description": "Your own computers from a phone or browser: a Mac's screen, a Windows PC or a Linux terminal, over your tailnet.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#3a5bd9",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "shortcuts": [
+    { "name": "Sessions", "url": "/sessions" },
+    { "name": "Add a computer", "url": "/?add=1" }
+  ]
+}

@@ -1,0 +1,34 @@
+# Pocket Remote — your own computers from a phone or browser (Go + SQLite + guacd).
+# Host networking: Wake-on-LAN broadcasts reach your home network, your computers
+# are reached over the box's tailnet, and guacd listens on 127.0.0.1 only.
+services:
+  pocket-remote:
+    image: ghcr.io/abjelosevic88/pocket-homelab-remote:latest
+    container_name: pocket-remote
+    restart: unless-stopped
+    network_mode: host
+    depends_on: [guacd]
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      PORT: ${PORT:-8080}
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      # SECURE_COOKIES: "true"          # behind HTTPS
+      # First admin (only used while the database has no users):
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      GUACD_ADDR: 127.0.0.1:4822
+      NOTIFY_URL: ${NOTIFY_URL:-}
+      # Pocket Core: one sign-in and app links instead of tokens.
+      # CORE_URL: http://127.0.0.1:8179
+      # CORE_REGISTRATION_KEY: ${CORE_REGISTRATION_KEY}
+    volumes:
+      - ./data:/data
+      # "Add from your tailnet" and who is online (read only):
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+  # Apache Guacamole's remote desktop engine: VNC, RDP and SSH.
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: pocket-remote-guacd
+    restart: unless-stopped
+    network_mode: host
+    command: ["/opt/guacamole/sbin/guacd", "-b", "127.0.0.1", "-l", "4822", "-f", "-L", "info"]

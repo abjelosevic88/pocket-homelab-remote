@@ -1,0 +1,5 @@
+# Pocket Remote behind Caddy. Homepage widgets and linked apps send their own
+# bearer token to /api/*.
+remote.example.com {
+	reverse_proxy pocket-remote:8080
+}
