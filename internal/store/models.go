@@ -80,6 +80,7 @@ type MachineOptions struct {
 	Resize       bool   `json:"resize,omitempty"`        // RDP: follow the window size
 	Audio        bool   `json:"audio,omitempty"`         // RDP: play the PC's sound here
 	FontSize     int    `json:"font_size,omitempty"`     // terminal
+	FontName     string `json:"font_name,omitempty"`     // terminal: "" = the Nerd Font in our guacd image
 	ColorScheme  string `json:"color_scheme,omitempty"`  // terminal: gray-black | black-white | white-black | green-black
 	SwapRedBlue  bool   `json:"swap_red_blue,omitempty"` // VNC servers that send BGR
 	RemoteCursor bool   `json:"remote_cursor,omitempty"` // VNC: draw the cursor on the machine

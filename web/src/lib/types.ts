@@ -24,7 +24,7 @@ export type Protocol = 'vnc' | 'rdp' | 'ssh'
 
 export interface MachineOptions {
   color_depth?: number; read_only?: boolean; rdp_security?: string; ignore_cert?: boolean; resize?: boolean; audio?: boolean
-  font_size?: number; color_scheme?: string; swap_red_blue?: boolean; remote_cursor?: boolean
+  font_size?: number; font_name?: string; color_scheme?: string; swap_red_blue?: boolean; remote_cursor?: boolean
 }
 
 export interface TailnetDevice { id: string; name: string; dns_name: string; os: string; ips: string[]; online: boolean; last_seen?: string; self?: boolean; tags?: string[] }

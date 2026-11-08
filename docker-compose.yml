@@ -27,7 +27,9 @@ services:
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
   # Apache Guacamole's remote desktop engine: VNC, RDP and SSH.
   guacd:
-    image: guacamole/guacd:1.5.5
+    build:
+      context: ./deploy/guacd     # guacd 1.5.5 + a Nerd Font for terminal icons
+    image: pocket-remote-guacd:local
     container_name: pocket-remote-guacd
     restart: unless-stopped
     network_mode: host

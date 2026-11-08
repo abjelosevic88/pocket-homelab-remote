@@ -113,6 +113,9 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
           </Field>}
           {p === 'ssh' && <>
             <Field label="Text size"><input type="number" min={8} max={32} value={opt.font_size || 12} onChange={e => setOpt({ ...opt, font_size: Number(e.target.value) })} /></Field>
+            <Field group label="Font" help="With icons: the symbols of eza, starship and powerline prompts show properly.">
+              <Select ariaLabel="Terminal font" value={opt.font_name || ''} onChange={v => setOpt({ ...opt, font_name: v || undefined })} options={[{ value: '', label: 'With icons (JetBrains Mono Nerd Font)' }, { value: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono' }, { value: 'Liberation Mono', label: 'Liberation Mono' }, { value: 'Terminus', label: 'Terminus (bitmap)' }]} />
+            </Field>
             <Field group label="Colours"><Select ariaLabel="Terminal colours" value={opt.color_scheme || 'gray-black'} onChange={v => setOpt({ ...opt, color_scheme: v })} options={[{ value: 'gray-black', label: 'Grey on black' }, { value: 'green-black', label: 'Green on black' }, { value: 'white-black', label: 'White on black' }, { value: 'black-white', label: 'Black on white' }]} /></Field>
           </>}
           <div className="mf-switches">

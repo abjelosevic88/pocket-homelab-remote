@@ -281,11 +281,17 @@ func (s *Server) guacParams(m store.Machine) (map[string]string, error) {
 			p["font-size"] = "12"
 		}
 		p["color-scheme"] = firstNonEmpty(o.ColorScheme, "gray-black")
+		// the Nerd Font in deploy/guacd: eza icons, starship and powerline prompts draw
+		// instead of empty boxes (a plain guacd falls back to its monospace font)
+		p["font-name"] = firstNonEmpty(o.FontName, terminalFont)
 		p["terminal-type"] = "xterm-256color"
 		p["scrollback"] = "2000"
 	}
 	return p, nil
 }
+
+// terminalFont is the font terminal sessions use unless a machine chooses another.
+const terminalFont = "JetBrainsMono NFM"
 
 // guacError is an error instruction the browser client understands.
 func guacError(msg string, code int) string {
