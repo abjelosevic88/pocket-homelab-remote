@@ -13,7 +13,7 @@ export type MachineDraft = Partial<Pick<Machine, 'name' | 'kind' | 'host' | 'pro
 const HOW: Record<Kind, React.ReactNode> = {
   mac: <>On the Mac: <b>System Settings → General → Sharing</b>, switch on <b>Screen Sharing</b>. For files, switch on <b>Remote Login</b> too. Sign in here with your Mac account name and password.</>,
   windows: <>On the PC: <b>Settings → System → Remote Desktop</b>, switch it on (Windows Pro). Sign in with the PC's account; for a Microsoft account use its email. For files, add <b>OpenSSH Server</b> under Optional features.</>,
-  linux: <>A terminal over SSH works on any Linux machine with an SSH server. For a desktop, run a VNC server (or xrdp) and choose that below.</>,
+  linux: <>A terminal over SSH works on any Linux machine with an SSH server. A desktop needs a desktop installed plus a VNC server (Screen Sharing) or xrdp (Remote Desktop) running on it.</>,
   other: <>Anything that speaks VNC, Remote Desktop or SSH: a Raspberry Pi, a NAS, a virtual machine.</>,
 }
 

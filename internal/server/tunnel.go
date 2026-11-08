@@ -371,7 +371,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 			code = statusUpstreamNotFound
 		}
 		s.log.Info("remote: connect failed", "machine", m.Name, "err", err)
-		refuse(err.Error(), code)
+		refuse(s.connectFailure(ctx, m, err), code)
 		return
 	}
 	defer gc.Close()
@@ -477,6 +477,38 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	gc.Close()
 	ws.Close(websocket.StatusNormalClosure, "")
 	s.endSession(uid, sess, ls, why, bytesIn.Load(), bytesOut.Load())
+}
+
+// connectFailure words a failed connection plainly: when nothing answers on
+// the machine's port, say that, instead of the engine's guess.
+func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error) string {
+	if strings.Contains(err.Error(), "not running") {
+		return err.Error()
+	}
+	st := s.checkOne(ctx, m)
+	if st.State == "online" {
+		return err.Error()
+	}
+	what := protocolName(m.Protocol)
+	port := m.EffectivePort()
+	switch {
+	case strings.Contains(st.Detail, "switched off"):
+		hint := ""
+		switch {
+		case m.Protocol == "rdp" && m.Kind == "linux":
+			hint = " A Linux machine needs an RDP server (xrdp) and a desktop for this; or connect with Terminal."
+		case m.Protocol == "vnc" && m.Kind == "mac":
+			hint = " Switch on Screen Sharing in System Settings → General → Sharing."
+		case m.Protocol == "rdp" && m.Kind == "windows":
+			hint = " Switch on Remote Desktop in Settings → System → Remote Desktop."
+		case m.Protocol == "vnc":
+			hint = " Start a VNC server on it, or connect with Terminal."
+		}
+		return fmt.Sprintf("Nothing on %s answers for %s (port %d).%s", m.Host, what, port, hint)
+	case strings.Contains(st.Detail, "no machine"):
+		return fmt.Sprintf("There is no computer called %s on your network or tailnet. Check the address (Edit).", m.Host)
+	}
+	return fmt.Sprintf("%s does not answer on port %d. Is it on and awake?", m.Name, port)
 }
 
 func (s *Server) endSession(uid int64, sess store.RemoteSession, ls *liveSession, reason string, in, out int64) {
