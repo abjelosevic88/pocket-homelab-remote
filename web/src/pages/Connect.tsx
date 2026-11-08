@@ -289,6 +289,22 @@ export default function Connect() {
     const next = Math.max(fit, Math.min(3, cur * (dir > 0 ? 1.4 : 1 / 1.4)))
     setZoom(Math.abs(next - fit) < 0.01 ? 'fit' : next)
   }
+  // switch between the sharp and the standard-size desktop: saved for this
+  // computer, then the session reconnects at the new size
+  const setResolution = async (standard: boolean) => {
+    if (!m || !!m.options.standard_res === standard) return
+    try {
+      const saved = await api.put<Machine>(`${V1}/machines/${m.id}`, { options: { ...m.options, standard_res: standard } })
+      setM(saved)
+      toast(standard ? 'Standard size: reconnecting…' : 'Sharp: reconnecting…')
+    } catch (e) { toast((e as Error).message, 'err') }
+  }
+  const resRef = useRef(m?.options.standard_res)
+  useEffect(() => {
+    if (!m) return
+    if (resRef.current !== undefined && resRef.current !== m.options.standard_res && phaseRef.current !== 'starting') connect()
+    resRef.current = m.options.standard_res
+  }, [m]) // eslint-disable-line react-hooks/exhaustive-deps
   const cmd = m?.kind === 'mac' ? KEY.meta : KEY.super
 
   const moreItems = (): MenuItem[] => [
@@ -296,6 +312,11 @@ export default function Connect() {
     ...(m?.files_enabled ? [{ label: 'Files…', icon: 'folder', onSelect: () => setSheet('files') }] : []),
     ...(m?.protocol !== 'ssh' ? [{ label: 'Ctrl + Alt + Delete', icon: 'keyboard', onSelect: cad }] : []),
     'sep',
+    ...(m?.protocol === 'rdp' && (window.devicePixelRatio || 1) > 1 ? [
+      { label: 'Sharp (every screen pixel)', icon: 'zoom-in', checked: !m.options.standard_res, onSelect: () => setResolution(false) },
+      { label: 'Standard size (as at first)', icon: 'zoom-out', checked: !!m.options.standard_res, onSelect: () => setResolution(true) },
+      'sep' as const,
+    ] : []),
     { label: 'Fit the screen', icon: 'minimize', checked: zoom === 'fit', onSelect: () => setZoom('fit') },
     { label: 'Actual size', icon: 'maximize', checked: zoom === 1, onSelect: () => setZoom(1) },
     ...(touch ? [{ label: mode === 'trackpad' ? 'Touch to click (direct)' : 'Use as a trackpad', icon: mode === 'trackpad' ? 'hand' : 'pointer', onSelect: () => setMode(mode === 'trackpad' ? 'touch' : 'trackpad') }] : []),

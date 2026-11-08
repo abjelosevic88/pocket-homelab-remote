@@ -85,6 +85,7 @@ type MachineOptions struct {
 	SwapRedBlue  bool   `json:"swap_red_blue,omitempty"` // VNC servers that send BGR
 	RemoteCursor bool   `json:"remote_cursor,omitempty"` // VNC: draw the cursor on the machine
 	SaveData     bool   `json:"save_data,omitempty"`     // allow JPEG/WebP for busy parts: less data, a softer picture
+	StandardRes  bool   `json:"standard_res,omitempty"`  // RDP: the desktop at the window's size in points (bigger, softer on Retina) instead of every screen pixel
 }
 
 // ParseOptions reads a machine's options (unknown or broken JSON = defaults).

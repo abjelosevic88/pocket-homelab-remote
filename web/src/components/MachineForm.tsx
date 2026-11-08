@@ -121,6 +121,7 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
             <Field group label="Colours"><Select ariaLabel="Terminal colours" value={opt.color_scheme || 'gray-black'} onChange={v => setOpt({ ...opt, color_scheme: v })} options={[{ value: 'gray-black', label: 'Grey on black' }, { value: 'green-black', label: 'Green on black' }, { value: 'white-black', label: 'White on black' }, { value: 'black-white', label: 'Black on white' }]} /></Field>
           </>}
           <div className="mf-switches">
+            {p === 'rdp' && <Toggle checked={!!opt.standard_res} onChange={v => setOpt({ ...opt, standard_res: v })} label="Standard size (bigger, softer on a Retina screen)" />}
             {p !== 'ssh' && <Toggle checked={!!opt.save_data} onChange={v => setOpt({ ...opt, save_data: v })} label="Save data (softer picture, for slow connections)" />}
             <Toggle checked={!!opt.read_only} onChange={v => setOpt({ ...opt, read_only: v })} label="Watch only (no mouse or keys)" />
             {p === 'rdp' && <>
