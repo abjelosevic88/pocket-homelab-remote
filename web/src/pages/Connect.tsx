@@ -299,11 +299,13 @@ export default function Connect() {
       toast(standard ? 'Standard size: reconnecting…' : 'Sharp: reconnecting…')
     } catch (e) { toast((e as Error).message, 'err') }
   }
-  const resRef = useRef(m?.options.standard_res)
+  // null until the computer is loaded; "off" arrives as a missing field, so compare as true/false
+  const resRef = useRef<boolean | null>(null)
   useEffect(() => {
     if (!m) return
-    if (resRef.current !== undefined && resRef.current !== m.options.standard_res && phaseRef.current !== 'starting') connect()
-    resRef.current = m.options.standard_res
+    const standard = !!m.options.standard_res
+    if (resRef.current !== null && resRef.current !== standard && phaseRef.current !== 'starting') connect()
+    resRef.current = standard
   }, [m]) // eslint-disable-line react-hooks/exhaustive-deps
   const cmd = m?.kind === 'mac' ? KEY.meta : KEY.super
 
