@@ -72,6 +72,8 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
           <Segmented value={p} onChange={v => set('protocol', v)} options={(['vnc', 'rdp', 'ssh'] as Protocol[]).map(x => ({ value: x, label: PROTOCOL_NAME[x], title: PROTOCOL_TECH[x] }))} />
         </Field>
 
+        {f.kind === 'mac' && p === 'rdp' && <p className="mf-warn small"><Icon name="alert" size={13} /><span>A Mac has no Remote Desktop. Choose <b>Screen Sharing</b>.</span></p>}
+        {f.kind === 'windows' && p === 'vnc' && <p className="mf-warn small"><Icon name="alert" size={13} /><span>Windows has no Screen Sharing (VNC) unless you installed a VNC server. Usually choose <b>Remote Desktop</b>.</span></p>}
         <h4 className="mf-h"><Icon name="key" size={14} />Sign-in</h4>
         <p className="muted small mf-note">Kept encrypted on the server; it never comes back to this browser.</p>
         <div className={p === 'rdp' ? 'three-col tight' : 'two-col tight'}>

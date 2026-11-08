@@ -409,7 +409,14 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		var buf strings.Builder
 		for {
-			raw, _, err := gc.R.ReadRaw()
+			raw, op, err := gc.R.ReadRaw()
+			if err == nil && op == "error" {
+				// the engine's own words ("wrong security type?") become plain ones
+				// when the machine's port does not answer at all
+				if in, perr := guac.Parse(raw); perr == nil && len(in.Args) > 1 {
+					raw = guac.Encode("error", s.connectFailure(tctx, m, errors.New(in.Args[0])), in.Args[1])
+				}
+			}
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					reason <- "closed"
@@ -487,6 +494,9 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 	}
 	st := s.checkOne(ctx, m)
 	if st.State == "online" {
+		if m.Protocol == "rdp" && m.Kind == "mac" {
+			return "A Mac has no Remote Desktop: choose Screen Sharing (Edit → Connect with)."
+		}
 		return err.Error()
 	}
 	what := protocolName(m.Protocol)
@@ -495,6 +505,8 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 	case strings.Contains(st.Detail, "switched off"):
 		hint := ""
 		switch {
+		case m.Protocol == "rdp" && m.Kind == "mac":
+			hint = " A Mac has no Remote Desktop: choose Screen Sharing (Edit → Connect with), and switch it on in System Settings → General → Sharing."
 		case m.Protocol == "rdp" && m.Kind == "linux":
 			hint = " A Linux machine needs an RDP server (xrdp) and a desktop for this; or connect with Terminal."
 		case m.Protocol == "vnc" && m.Kind == "mac":

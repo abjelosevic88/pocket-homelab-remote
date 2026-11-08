@@ -260,3 +260,5 @@ span.block { display: block; }
 .rs-bar button.on, .rs-bar button:active:not(:disabled) { color: #fff; background: rgba(255, 255, 255, .07); }
 .rs-bar button span { white-space: nowrap; }
 .rs-hint { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 15; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 12px; border-radius: 99px; background: rgba(255, 255, 255, .12); color: #e8e8ee; white-space: nowrap; pointer-events: none; }
+.mf-warn { display: flex; gap: 6px; align-items: flex-start; margin: -4px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--warning-soft); line-height: 1.45; }
+.mf-warn > .icon { color: var(--warning); margin-top: 2px; flex-shrink: 0; }

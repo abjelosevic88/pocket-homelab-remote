@@ -8,7 +8,7 @@ import { Icon } from './icons'
 import type { MachineDraft } from './MachineForm'
 import { Loading, Modal, Switch, useAsync } from './ui'
 
-const nice = (name: string) => name.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+const nice = (name: string) => name.replace(/[-_]+/g, ' ').replace(/(^|\s)\p{L}/gu, c => c.toUpperCase())
 
 export function TailnetModal({ onClose, onPick }: { onClose: () => void; onPick: (d: MachineDraft) => void }) {
   const { data, error } = useAsync(() => api.get<{ available: boolean; detail?: string; devices: TailnetListDevice[] }>(`${V1}/tailnet`), [])
