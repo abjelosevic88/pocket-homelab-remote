@@ -403,9 +403,10 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		in := machineInput{Name: m.Name, Kind: m.Kind, Host: m.Host, Protocol: m.Protocol, Port: m.Port, Username: m.Username, Domain: m.Domain,
-			MACAddress: m.MACAddress, WOLBroadcast: m.WOLBroadcast, FilesEnabled: m.FilesEnabled, SSHPort: m.SSHPort, Options: m.Options, Notes: m.Notes, Favorite: m.Favorite, Sort: m.Sort}
+			MACAddress: m.MACAddress, WOLBroadcast: m.WOLBroadcast, FilesEnabled: m.FilesEnabled, SSHPort: m.SSHPort, Options: m.Options, Notes: m.Notes, Favorite: m.Favorite, Sort: m.Sort,
+			Desktop: m.DesktopEnabled, Terminal: m.TerminalEnabled}
 		nm := store.Machine{}
-		if msg := in.apply(&nm, map[string]bool{"name": true, "kind": true, "host": true, "protocol": true, "port": true, "username": true, "domain": true, "mac_address": true, "wol_broadcast": true, "files_enabled": true, "ssh_port": true, "options": true, "notes": true, "favorite": true, "sort": true}); msg != "" {
+		if msg := in.apply(&nm, map[string]bool{"name": true, "kind": true, "host": true, "protocol": true, "port": true, "username": true, "domain": true, "mac_address": true, "wol_broadcast": true, "files_enabled": true, "ssh_port": true, "options": true, "notes": true, "favorite": true, "sort": true, "desktop_enabled": true, "terminal_enabled": true}); msg != "" {
 			counts["skipped"]++
 			continue
 		}

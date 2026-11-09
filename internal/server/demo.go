@@ -22,11 +22,11 @@ func (s *Server) seedDemo(ctx context.Context, owner int64) error {
 	rng := rand.New(rand.NewSource(42))
 	pw, _ := s.seal.Seal("demo-password")
 	machines := []store.Machine{
-		{Name: "MacBook Pro", Kind: "mac", Host: "macbook-pro.demo", Protocol: "vnc", Username: "aleksandar", Secret: pw, MACAddress: "a4:83:e7:12:9c:01", FilesEnabled: true, Favorite: true, Notes: "Screen Sharing on, Remote Login on."},
-		{Name: "Gaming PC", Kind: "windows", Host: "gaming-pc.demo", Protocol: "rdp", Username: "Aleksandar", Secret: pw, MACAddress: "2c:f0:5d:aa:41:7e", Options: []byte(`{"rdp_security":"nla","ignore_cert":true,"resize":true}`), Favorite: true},
-		{Name: "Home server", Kind: "linux", Host: "home-server.demo", Protocol: "ssh", Username: "aleksandar", Secret: pw, FilesEnabled: true, Options: []byte(`{"font_size":13}`)},
-		{Name: "Mom's laptop", Kind: "windows", Host: "mom-laptop.demo", Protocol: "rdp", Username: "Mama", Secret: pw, Notes: "Ask her to keep it plugged in; it sleeps after 30 minutes."},
-		{Name: "NAS", Kind: "linux", Host: "truenas.demo", Protocol: "ssh", Username: "admin", Secret: pw, FilesEnabled: true, MACAddress: "00:11:32:7a:bc:de"},
+		{Name: "MacBook Pro", Kind: "mac", Host: "macbook-pro.demo", Protocol: "vnc", DesktopEnabled: true, TerminalEnabled: true, Username: "aleksandar", Secret: pw, MACAddress: "a4:83:e7:12:9c:01", FilesEnabled: true, Favorite: true, Notes: "Screen Sharing on, Remote Login on."},
+		{Name: "Gaming PC", Kind: "windows", Host: "gaming-pc.demo", Protocol: "rdp", DesktopEnabled: true, Username: "Aleksandar", Secret: pw, MACAddress: "2c:f0:5d:aa:41:7e", Options: []byte(`{"rdp_security":"nla","ignore_cert":true,"resize":true}`), Favorite: true},
+		{Name: "Home server", Kind: "linux", Host: "home-server.demo", Protocol: "rdp", DesktopEnabled: true, TerminalEnabled: true, Username: "aleksandar", Secret: pw, FilesEnabled: true, Options: []byte(`{"font_size":13}`)},
+		{Name: "Mom's laptop", Kind: "windows", Host: "mom-laptop.demo", Protocol: "rdp", DesktopEnabled: true, Username: "Mama", Secret: pw, Notes: "Ask her to keep it plugged in; it sleeps after 30 minutes."},
+		{Name: "NAS", Kind: "linux", Host: "truenas.demo", Protocol: "rdp", TerminalEnabled: true, Username: "admin", Secret: pw, FilesEnabled: true, MACAddress: "00:11:32:7a:bc:de"},
 	}
 	for i := range machines {
 		if err := s.store.CreateMachine(ctx, owner, &machines[i]); err != nil {
@@ -61,11 +61,15 @@ func (s *Server) seedDemo(ctx context.Context, owner int64) error {
 			if start.After(now) {
 				continue
 			}
+			proto := m.Protocol
+			if !m.DesktopEnabled || (m.TerminalEnabled && rng.Intn(3) == 0) {
+				proto = "ssh"
+			}
 			dur := 60 + rng.Intn(40*60)
-			if m.Protocol == "ssh" {
+			if proto == "ssh" {
 				dur = 30 + rng.Intn(12*60)
 			}
-			r := store.RemoteSession{MachineID: &machines[mi].ID, MachineName: m.Name, Protocol: m.Protocol,
+			r := store.RemoteSession{MachineID: &machines[mi].ID, MachineName: m.Name, Protocol: proto,
 				StartedAt: start.UTC().Format(time.RFC3339Nano), EndedAt: start.Add(time.Duration(dur) * time.Second).UTC().Format(time.RFC3339Nano),
 				DurationS: dur, Device: devices[rng.Intn(len(devices))], IP: fmt.Sprintf("100.%d.%d.%d", 64+rng.Intn(60), rng.Intn(255), 1+rng.Intn(254)),
 				EndReason: reasons[rng.Intn(len(reasons))], BytesIn: int64(dur * (200 + rng.Intn(800))), BytesOut: int64(dur * (20000 + rng.Intn(90000)))}

@@ -5,9 +5,13 @@ export const KIND_NAME: Record<Kind, string> = { mac: 'Mac', windows: 'Windows P
 export const PROTOCOL_NAME: Record<Protocol, string> = { vnc: 'Screen Sharing', rdp: 'Remote Desktop', ssh: 'Terminal' }
 export const PROTOCOL_TECH: Record<Protocol, string> = { vnc: 'VNC', rdp: 'RDP', ssh: 'SSH' }
 export const DEFAULT_PORT: Record<Protocol, number> = { vnc: 5900, rdp: 3389, ssh: 22 }
-export const DEFAULT_PROTOCOL: Record<Kind, Protocol> = { mac: 'vnc', windows: 'rdp', linux: 'ssh', other: 'vnc' }
+export const DEFAULT_PROTOCOL: Record<Kind, Protocol> = { mac: 'vnc', windows: 'rdp', linux: 'rdp', other: 'vnc' }
 
 export const kindIcon = (k: Kind) => k === 'mac' ? 'laptop' : k === 'windows' ? 'monitor' : k === 'linux' ? 'server' : 'monitor'
+
+export type Way = 'desktop' | 'terminal'
+export const WAY_NAME: Record<Way, string> = { desktop: 'Desktop', terminal: 'Terminal' }
+export const WAY_ICON: Record<Way, string> = { desktop: 'monitor', terminal: 'terminal' }
 
 /** "Online · 12 ms", "Waking…", "Offline · Screen Sharing is switched off on it" */
 export function statusLine(m: Machine): string {

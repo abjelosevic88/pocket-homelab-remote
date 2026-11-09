@@ -8,16 +8,17 @@ import (
 
 const machineCols = `id, user_id, name, kind, host, protocol, port, username, secret, private_key, domain,
 	mac_address, wol_broadcast, files_enabled, ssh_port, host_key, options, notes, favorite, sort, tailnet_id,
-	last_used_at, last_online_at, created_at, updated_at`
+	last_used_at, last_online_at, created_at, updated_at, desktop_enabled, terminal_enabled`
 
 func scanMachine(sc interface{ Scan(...any) error }) (Machine, error) {
 	var m Machine
-	var files, fav int
+	var files, fav, desk, term int
 	var opts string
 	err := sc.Scan(&m.ID, &m.UserID, &m.Name, &m.Kind, &m.Host, &m.Protocol, &m.Port, &m.Username, &m.Secret, &m.PrivateKey, &m.Domain,
 		&m.MACAddress, &m.WOLBroadcast, &files, &m.SSHPort, &m.HostKey, &opts, &m.Notes, &fav, &m.Sort, &m.TailnetID,
-		&m.LastUsedAt, &m.LastOnlineAt, &m.CreatedAt, &m.UpdatedAt)
+		&m.LastUsedAt, &m.LastOnlineAt, &m.CreatedAt, &m.UpdatedAt, &desk, &term)
 	m.FilesEnabled, m.Favorite = files == 1, fav == 1
+	m.DesktopEnabled, m.TerminalEnabled = desk == 1, term == 1
 	if !json.Valid([]byte(opts)) {
 		opts = "{}"
 	}
@@ -80,11 +81,12 @@ func (s *Store) CreateMachine(ctx context.Context, uid int64, m *Machine) error 
 		m.SSHPort = 22
 	}
 	res, err := s.DB.ExecContext(ctx, `INSERT INTO machines (user_id, name, kind, host, protocol, port, username, secret, private_key, domain,
-		mac_address, wol_broadcast, files_enabled, ssh_port, host_key, options, notes, favorite, sort, tailnet_id, last_used_at, last_online_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mac_address, wol_broadcast, files_enabled, ssh_port, host_key, options, notes, favorite, sort, tailnet_id, last_used_at, last_online_at,
+		desktop_enabled, terminal_enabled)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		uid, m.Name, m.Kind, m.Host, m.Protocol, m.Port, m.Username, m.Secret, m.PrivateKey, m.Domain,
 		m.MACAddress, m.WOLBroadcast, boolInt(m.FilesEnabled), m.SSHPort, m.HostKey, optionsText(m.Options), m.Notes, boolInt(m.Favorite), m.Sort, m.TailnetID,
-		m.LastUsedAt, m.LastOnlineAt)
+		m.LastUsedAt, m.LastOnlineAt, boolInt(m.DesktopEnabled), boolInt(m.TerminalEnabled))
 	if err != nil {
 		return err
 	}
@@ -101,10 +103,11 @@ func (s *Store) CreateMachine(ctx context.Context, uid int64, m *Machine) error 
 func (s *Store) UpdateMachine(ctx context.Context, uid int64, m *Machine) error {
 	res, err := s.DB.ExecContext(ctx, `UPDATE machines SET name = ?, kind = ?, host = ?, protocol = ?, port = ?, username = ?, secret = ?, private_key = ?, domain = ?,
 		mac_address = ?, wol_broadcast = ?, files_enabled = ?, ssh_port = ?, host_key = ?, options = ?, notes = ?, favorite = ?, sort = ?, tailnet_id = ?,
+		desktop_enabled = ?, terminal_enabled = ?,
 		updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE user_id = ? AND id = ?`,
 		m.Name, m.Kind, m.Host, m.Protocol, m.Port, m.Username, m.Secret, m.PrivateKey, m.Domain,
 		m.MACAddress, m.WOLBroadcast, boolInt(m.FilesEnabled), m.SSHPort, m.HostKey, optionsText(m.Options), m.Notes, boolInt(m.Favorite), m.Sort, m.TailnetID,
-		uid, m.ID)
+		boolInt(m.DesktopEnabled), boolInt(m.TerminalEnabled), uid, m.ID)
 	if err != nil {
 		return err
 	}

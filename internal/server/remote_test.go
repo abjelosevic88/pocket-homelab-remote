@@ -411,3 +411,53 @@ func TestTunnelEndToEnd(t *testing.T) {
 	}
 	t.Fatal("the session was not logged as ended")
 }
+
+// A computer with two ways in: the desktop and the terminal open separately,
+// the terminal as ssh on the SSH port; only switched-on ways open.
+func TestWaysIn(t *testing.T) {
+	addr, got := fakeGuacd(t)
+	a := newTestApp(t, addr)
+	id := a.addMachine(a.alice, map[string]any{"name": "Mac", "kind": "mac", "host": "127.0.0.1", "port": 5999, "ssh_port": 2299, "username": "me", "password": "pw"})
+	_, v, _ := a.do(a.alice, "GET", fmt.Sprintf("/api/v1/machines/%d", id), nil)
+	if v["desktop_enabled"] != true || v["terminal_enabled"] != true {
+		t.Fatalf("a new Mac should have both ways in: %v %v", v["desktop_enabled"], v["terminal_enabled"])
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	open := func(way string) {
+		_, r, raw := a.do(a.alice, "POST", fmt.Sprintf("/api/v1/machines/%d/connect", id), map[string]any{"way": way})
+		tk, _ := r["ticket"].(string)
+		if tk == "" {
+			t.Fatalf("%s: no ticket: %s", way, raw)
+		}
+		c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(a.ts.URL, "http")+"/api/v1/tunnel?ticket="+tk, &websocket.DialOptions{Subprotocols: []string{"guacamole"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Read(ctx)
+		c.Close(websocket.StatusNormalClosure, "")
+	}
+	open("terminal")
+	if v := <-got; v != "select:ssh" {
+		t.Fatalf("terminal select = %s", v)
+	}
+	if v := <-got; !strings.Contains(v, ",2299,") {
+		t.Fatalf("terminal connect should use the SSH port: %s", v)
+	}
+	// switch the terminal off: it no longer opens
+	a.do(a.alice, "PUT", fmt.Sprintf("/api/v1/machines/%d", id), map[string]any{"terminal_enabled": false})
+	_, r, _ := a.do(a.alice, "POST", fmt.Sprintf("/api/v1/machines/%d/connect", id), map[string]any{"way": "terminal"})
+	if r["ok"] != false {
+		t.Fatalf("a switched-off way opened: %v", r)
+	}
+	// both off is refused
+	if code, _, _ := a.do(a.alice, "PUT", fmt.Sprintf("/api/v1/machines/%d", id), map[string]any{"desktop_enabled": false}); code != 400 {
+		t.Fatalf("no way in at all was accepted")
+	}
+	// an older client saying protocol ssh gets the terminal way in
+	id2 := a.addMachine(a.alice, map[string]any{"name": "Box", "kind": "linux", "host": "box", "protocol": "ssh", "port": 2222})
+	_, v2, _ := a.do(a.alice, "GET", fmt.Sprintf("/api/v1/machines/%d", id2), nil)
+	if v2["terminal_enabled"] != true || v2["desktop_enabled"] != false || v2["ssh_port"].(float64) != 2222 {
+		t.Fatalf("legacy ssh = %v %v %v", v2["terminal_enabled"], v2["desktop_enabled"], v2["ssh_port"])
+	}
+}

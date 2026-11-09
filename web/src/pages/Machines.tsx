@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import { ago, plural } from '../lib/format'
-import { KIND_NAME, PROTOCOL_NAME, fmtSeconds, kindIcon, statusLine } from '../lib/remote'
+import { KIND_NAME, PROTOCOL_NAME, WAY_ICON, WAY_NAME, fmtSeconds, kindIcon, statusLine } from '../lib/remote'
 import type { Machine, Overview } from '../lib/types'
 import { Icon } from '../components/icons'
 import { openCreate, openEdit, useMachines, useOnChange } from '../components/Layout'
@@ -73,7 +73,7 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
         <span className={`mc-ico k-${m.kind}`}><Icon name={kindIcon(m.kind)} size={22} /></span>
         <div className="grow mc-title">
           <h3 className="ellipsis">{m.name}{m.favorite && <Icon name="star" size={13} className="mc-fav" />}</h3>
-          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {PROTOCOL_NAME[m.protocol]} · {m.host}</div>
+          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.host}</div>
         </div>
         <MenuButton label={`More for ${m.name}`} align="right" items={[
           { label: 'Edit', icon: 'edit', onSelect: () => openEdit(m) },
@@ -94,7 +94,11 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
         {!m.has_password && !m.has_key && m.protocol !== 'vnc' && <span className="warn-text"> · no sign-in saved</span>}
       </div>
       <div className="mc-actions">
-        <Link to={`/connect/${m.id}`} className="btn primary sm"><Icon name="log-in" size={14} />Connect</Link>
+        {m.available_ways.map((w, i) => (
+          <Link key={w} to={`/connect/${m.id}?way=${w}`} className={`btn sm ${i === 0 ? 'primary' : ''}`} title={`Open its ${WAY_NAME[w].toLowerCase()}`}>
+            <Icon name={WAY_ICON[w]} size={14} />{WAY_NAME[w]}
+          </Link>
+        ))}
         {m.mac_address && state !== 'online' && <button type="button" className="btn sm" onClick={wake} disabled={busy === 'wake' || state === 'waking'}><Icon name="power" size={14} />{state === 'waking' ? 'Waking…' : 'Wake'}</button>}
         {m.files_enabled && <Link to={`/machines/${m.id}/files`} className="btn sm ghost"><Icon name="folder" size={14} />Files</Link>}
       </div>

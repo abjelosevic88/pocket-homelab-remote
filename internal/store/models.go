@@ -25,31 +25,35 @@ type APIToken struct {
 // Machine is a computer a person reaches from here. Secret and PrivateKey
 // hold sealed values (see internal/seal) and are never sent to a browser.
 type Machine struct {
-	ID           int64           `json:"id"`
-	UserID       int64           `json:"-"`
-	Name         string          `json:"name"`
-	Kind         string          `json:"kind"`
-	Host         string          `json:"host"`
-	Protocol     string          `json:"protocol"`
-	Port         int             `json:"port"`
-	Username     string          `json:"username"`
-	Secret       string          `json:"-"`
-	PrivateKey   string          `json:"-"`
-	Domain       string          `json:"domain"`
-	MACAddress   string          `json:"mac_address"`
-	WOLBroadcast string          `json:"wol_broadcast"`
-	FilesEnabled bool            `json:"files_enabled"`
-	SSHPort      int             `json:"ssh_port"`
-	HostKey      string          `json:"host_key"`
-	Options      json.RawMessage `json:"options"`
-	Notes        string          `json:"notes"`
-	Favorite     bool            `json:"favorite"`
-	Sort         int             `json:"sort"`
-	TailnetID    string          `json:"tailnet_id"`
-	LastUsedAt   string          `json:"last_used_at"`
-	LastOnlineAt string          `json:"last_online_at"`
-	CreatedAt    string          `json:"created_at"`
-	UpdatedAt    string          `json:"updated_at"`
+	ID       int64  `json:"id"`
+	UserID   int64  `json:"-"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Host     string `json:"host"`
+	Protocol string `json:"protocol"` // the desktop's: vnc | rdp
+	Port     int    `json:"port"`     // the desktop's, 0 = usual
+	// Ways in: the desktop (Protocol, Port) and the terminal (SSH on SSHPort,
+	// the same sign-in as files).
+	DesktopEnabled  bool            `json:"desktop_enabled"`
+	TerminalEnabled bool            `json:"terminal_enabled"`
+	Username        string          `json:"username"`
+	Secret          string          `json:"-"`
+	PrivateKey      string          `json:"-"`
+	Domain          string          `json:"domain"`
+	MACAddress      string          `json:"mac_address"`
+	WOLBroadcast    string          `json:"wol_broadcast"`
+	FilesEnabled    bool            `json:"files_enabled"`
+	SSHPort         int             `json:"ssh_port"`
+	HostKey         string          `json:"host_key"`
+	Options         json.RawMessage `json:"options"`
+	Notes           string          `json:"notes"`
+	Favorite        bool            `json:"favorite"`
+	Sort            int             `json:"sort"`
+	TailnetID       string          `json:"tailnet_id"`
+	LastUsedAt      string          `json:"last_used_at"`
+	LastOnlineAt    string          `json:"last_online_at"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
 // DefaultPort is the usual port of a protocol.
@@ -69,6 +73,33 @@ func (m Machine) EffectivePort() int {
 		return m.Port
 	}
 	return DefaultPort(m.Protocol)
+}
+
+// Ways in.
+const (
+	WayDesktop  = "desktop"
+	WayTerminal = "terminal"
+)
+
+// ForWay is the machine as one way in sees it: for the terminal, protocol ssh
+// on the SSH port; for the desktop, the machine itself.
+func (m Machine) ForWay(way string) Machine {
+	if way == WayTerminal {
+		m.Protocol, m.Port = "ssh", m.SSHPort
+	}
+	return m
+}
+
+// Ways lists the ways in that are switched on, desktop first.
+func (m Machine) Ways() []string {
+	var w []string
+	if m.DesktopEnabled {
+		w = append(w, WayDesktop)
+	}
+	if m.TerminalEnabled {
+		w = append(w, WayTerminal)
+	}
+	return w
 }
 
 // MachineOptions are the per-machine display and protocol choices.

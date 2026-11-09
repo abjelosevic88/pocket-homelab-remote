@@ -23,7 +23,7 @@ import (
 
 var (
 	kinds     = []string{"mac", "windows", "linux", "other"}
-	protocols = []string{"vnc", "rdp", "ssh"}
+	protocols = []string{"vnc", "rdp"} // the desktop's; the terminal is SSH
 	hostRe    = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.\-_:%\[\]]{0,252})$`)
 )
 
@@ -54,6 +54,8 @@ type machineInput struct {
 	WOLBroadcast  string          `json:"wol_broadcast"`
 	FilesEnabled  bool            `json:"files_enabled"`
 	SSHPort       int             `json:"ssh_port"`
+	Desktop       bool            `json:"desktop_enabled"`
+	Terminal      bool            `json:"terminal_enabled"`
 	Options       json.RawMessage `json:"options"`
 	Notes         string          `json:"notes"`
 	Favorite      bool            `json:"favorite"`
@@ -76,10 +78,11 @@ func (in machineInput) apply(m *store.Machine, keys map[string]bool) string {
 		}
 		m.Host = strings.TrimSuffix(strings.TrimSuffix(h, "/"), ".")
 	}
-	if keys["protocol"] {
+	legacySSH := keys["protocol"] && in.Protocol == "ssh"
+	if keys["protocol"] && !legacySSH {
 		m.Protocol = in.Protocol
 	}
-	if keys["port"] {
+	if keys["port"] && !legacySSH {
 		m.Port = in.Port
 	}
 	if keys["username"] {
@@ -99,6 +102,31 @@ func (in machineInput) apply(m *store.Machine, keys map[string]bool) string {
 	}
 	if keys["ssh_port"] {
 		m.SSHPort = in.SSHPort
+	}
+	if keys["desktop_enabled"] {
+		m.DesktopEnabled = in.Desktop
+	}
+	if keys["terminal_enabled"] {
+		m.TerminalEnabled = in.Terminal
+	}
+	if m.ID == 0 && !keys["desktop_enabled"] && !keys["terminal_enabled"] && !legacySSH {
+		// a new computer without a choice: the usual ways in for its kind
+		k := in.Kind
+		if k == "" {
+			k = m.Kind
+		}
+		m.DesktopEnabled = k != "linux"
+		m.TerminalEnabled = k == "mac" || k == "linux"
+	}
+	if legacySSH {
+		// "connect with ssh" from an older client: the terminal way in
+		m.TerminalEnabled = true
+		if !keys["desktop_enabled"] {
+			m.DesktopEnabled = false
+		}
+		if keys["port"] && in.Port > 0 {
+			m.SSHPort = in.Port
+		}
 	}
 	if keys["options"] {
 		o := store.ParseOptions(in.Options)
@@ -132,7 +160,9 @@ func (in machineInput) apply(m *store.Machine, keys map[string]bool) string {
 	case !oneOf(m.Kind, kinds):
 		return "the kind is mac, windows, linux or other"
 	case !oneOf(m.Protocol, protocols):
-		return "connect with Screen Sharing (vnc), Remote Desktop (rdp) or a terminal (ssh)"
+		return "the desktop opens with Screen Sharing (vnc) or Remote Desktop (rdp)"
+	case !m.DesktopEnabled && !m.TerminalEnabled:
+		return "switch on at least one way in: the desktop or the terminal"
 	case m.Host == "" || !hostRe.MatchString(m.Host):
 		return "the address is a tailnet name (macbook) or an IP address (100.64.0.12), without http://"
 	case m.Port < 0 || m.Port > 65535 || m.SSHPort < 1 || m.SSHPort > 65535:
@@ -153,12 +183,11 @@ func (in machineInput) apply(m *store.Machine, keys map[string]bool) string {
 	return ""
 }
 
+// defaultProtocol is the usual desktop protocol of a kind of computer.
 func defaultProtocol(kind string) string {
 	switch kind {
-	case "windows":
+	case "windows", "linux":
 		return "rdp"
-	case "linux":
-		return "ssh"
 	}
 	return "vnc"
 }
@@ -170,12 +199,14 @@ type machineView struct {
 	HasPassword bool            `json:"has_password"`
 	HasKey      bool            `json:"has_key"`
 	Status      machineStatus   `json:"status"`
+	Available   []string        `json:"available_ways"` // the ways in to offer now
 	Tailnet     *tailnet.Device `json:"tailnet,omitempty"`
 	Live        int             `json:"live"` // sessions open right now
 }
 
 func (s *Server) view(m store.Machine, devs []tailnet.Device) machineView {
 	v := machineView{Machine: m, Port: m.EffectivePort(), HasPassword: m.Secret != "", HasKey: m.PrivateKey != "", Status: s.statusOf(m.ID)}
+	v.Available = v.Status.available(m)
 	if d, ok := tailnet.Match(devs, m.Host); ok {
 		v.Tailnet = &d
 	}
@@ -269,7 +300,7 @@ func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := store.Machine{}
-	for _, k := range []string{"name", "kind", "host", "protocol", "port", "username", "domain", "mac_address", "wol_broadcast", "files_enabled", "ssh_port", "options", "notes", "favorite", "sort", "tailnet_id"} {
+	for _, k := range []string{"name", "kind", "host", "port", "username", "domain", "mac_address", "wol_broadcast", "files_enabled", "ssh_port", "options", "notes", "favorite", "sort", "tailnet_id"} {
 		keys[k] = true
 	}
 	if msg := in.apply(&m, keys); msg != "" {
@@ -356,11 +387,34 @@ func (s *Server) handleForgetHostKey(w http.ResponseWriter, r *http.Request) {
 
 // machineStatus is the last reachability check of a machine.
 type machineStatus struct {
-	State     string `json:"state"` // online | offline | unknown
+	State     string `json:"state"` // online | offline | unknown: online when any way in answers
 	CheckedAt string `json:"checked_at,omitempty"`
 	LatencyMS int    `json:"latency_ms,omitempty"`
 	Detail    string `json:"detail,omitempty"`
 	Waking    string `json:"waking_since,omitempty"`
+	// Each way in that is switched on: desktop, terminal.
+	Ways map[string]wayStatus `json:"ways,omitempty"`
+}
+
+// wayStatus is whether one way in answers.
+type wayStatus struct {
+	State     string `json:"state"` // online | offline
+	LatencyMS int    `json:"latency_ms,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+	Refused   bool   `json:"refused,omitempty"` // the computer answers, but not on this way's port
+}
+
+// available is the ways in worth showing: switched on, and not refused by a
+// computer that is online (Screen Sharing switched off on a Mac that answers SSH).
+func (st machineStatus) available(m store.Machine) []string {
+	out := []string{}
+	for _, w := range m.Ways() {
+		if ws, ok := st.Ways[w]; ok && ws.Refused && st.State == "online" {
+			continue
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 func (s *Server) statusOf(id int64) machineStatus {
@@ -375,35 +429,77 @@ func (s *Server) statusOf(id int64) machineStatus {
 // isDemoHost marks the demo machines: their status is made up, never dialled.
 func isDemoHost(h string) bool { return strings.HasSuffix(strings.ToLower(h), ".demo") }
 
-// probe dials the machine's remote desktop port.
+// probe checks every way in that is switched on, side by side.
 func probe(ctx context.Context, m store.Machine) machineStatus {
 	now := store.Now()
+	st := machineStatus{State: "offline", CheckedAt: now, Ways: map[string]wayStatus{}}
+	ways := m.Ways()
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, w := range ways {
+		wg.Add(1)
+		go func(w string) {
+			defer wg.Done()
+			ws := probeWay(ctx, m.ForWay(w))
+			mu.Lock()
+			st.Ways[w] = ws
+			mu.Unlock()
+		}(w)
+	}
+	wg.Wait()
+	details := []string{}
+	for _, w := range ways {
+		ws := st.Ways[w]
+		if ws.State == "online" {
+			if st.State != "online" || ws.LatencyMS < st.LatencyMS {
+				st.LatencyMS = ws.LatencyMS
+			}
+			st.State = "online"
+		} else if ws.Detail != "" {
+			details = append(details, ws.Detail)
+		}
+	}
+	if st.State != "online" {
+		st.Detail = "not answering"
+		if len(details) > 0 {
+			st.Detail = details[0]
+			if len(details) > 1 && details[0] != details[1] && strings.Contains(details[0], "switched off") && strings.Contains(details[1], "switched off") {
+				st.Detail = "nothing to connect to is switched on"
+			}
+		}
+	}
+	return st
+}
+
+// probeWay dials one way's port.
+func probeWay(ctx context.Context, m store.Machine) wayStatus {
 	if isDemoHost(m.Host) {
 		if m.Favorite || m.Kind == "linux" {
-			return machineStatus{State: "online", CheckedAt: now, LatencyMS: 8 + int(m.ID*7%30)}
+			return wayStatus{State: "online", LatencyMS: 8 + int(m.ID*7%30)}
 		}
-		return machineStatus{State: "offline", CheckedAt: now, Detail: "not answering"}
+		return wayStatus{State: "offline", Detail: "not answering"}
 	}
 	d := net.Dialer{Timeout: 3 * time.Second}
 	start := time.Now()
 	c, err := d.DialContext(ctx, "tcp", net.JoinHostPort(m.Host, strconv.Itoa(m.EffectivePort())))
 	if err != nil {
-		detail := "not answering"
+		ws := wayStatus{State: "offline", Detail: "not answering"}
 		var de *net.DNSError
 		switch {
 		case errors.As(err, &de):
-			detail = "no machine by that name"
+			ws.Detail = "no machine by that name"
 		case strings.Contains(err.Error(), "refused"):
-			detail = protocolName(m.Protocol) + " is switched off on it"
+			ws.Detail = protocolName(m.Protocol) + " is switched off on it"
+			ws.Refused = true
 		}
-		return machineStatus{State: "offline", CheckedAt: now, Detail: detail}
+		return ws
 	}
 	c.Close()
 	ms := int(time.Since(start).Milliseconds())
 	if ms < 1 {
 		ms = 1
 	}
-	return machineStatus{State: "online", CheckedAt: now, LatencyMS: ms}
+	return wayStatus{State: "online", LatencyMS: ms}
 }
 
 func protocolName(p string) string {

@@ -264,3 +264,7 @@ span.block { display: block; }
 .mf-warn > .icon { color: var(--warning); margin-top: 2px; flex-shrink: 0; }
 .mf-switch { display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; min-width: 0; line-height: 1.35; }
 .mf-switch .switch { flex-shrink: 0; }
+.mf-ways { display: grid; gap: 8px; margin-top: 8px; }
+.mf-way { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); }
+.mf-way.on { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: var(--accent-soft); }
+.mf-way .mf-switch { font-weight: 600; min-width: 130px; }

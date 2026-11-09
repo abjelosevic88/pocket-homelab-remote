@@ -29,10 +29,12 @@ export interface MachineOptions {
 
 export interface TailnetDevice { id: string; name: string; dns_name: string; os: string; ips: string[]; online: boolean; last_seen?: string; self?: boolean; tags?: string[] }
 
-export interface MachineStatus { state: 'online' | 'offline' | 'unknown'; checked_at?: string; latency_ms?: number; detail?: string; waking_since?: string }
+export interface WayStatus { state: 'online' | 'offline'; latency_ms?: number; detail?: string; refused?: boolean }
+export interface MachineStatus { state: 'online' | 'offline' | 'unknown'; checked_at?: string; latency_ms?: number; detail?: string; waking_since?: string; ways?: Partial<Record<'desktop' | 'terminal', WayStatus>> }
 
 export interface Machine {
   id: number; name: string; kind: Kind; host: string; protocol: Protocol; port: number; effective_port: number
+  desktop_enabled: boolean; terminal_enabled: boolean; available_ways: ('desktop' | 'terminal')[]
   username: string; domain: string; mac_address: string; wol_broadcast: string
   files_enabled: boolean; ssh_port: number; host_key: string; options: MachineOptions; notes: string
   favorite: boolean; sort: number; tailnet_id: string; last_used_at: string; last_online_at: string

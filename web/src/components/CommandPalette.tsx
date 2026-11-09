@@ -22,7 +22,7 @@ export function CommandPalette({ onClose, commands, machines }: { onClose: () =>
     const hit = (text: string) => words.every(w => text.toLowerCase().includes(w))
     const cmds = commands.filter(c => !n || hit(`${c.label} ${c.keywords || ''}`)).map(c => ({ key: c.id, group: 'Commands', icon: <Icon name={c.icon} size={16} />, label: c.label, hint: c.hint, run: c.run }))
     const ms = (machines || []).filter(m => !n || hit(`${m.name} ${m.host} ${m.kind} connect open`))
-    const conn = ms.slice(0, 8).map(m => ({ key: `c${m.id}`, group: 'Connect', icon: <Icon name={kindIcon(m.kind)} size={16} />, label: m.name, sub: `${m.host}${m.status.state === 'online' ? ' · online' : m.status.state === 'offline' ? ' · offline' : ''}`, run: () => navigate(`/connect/${m.id}`) }))
+    const conn = ms.slice(0, 8).flatMap(m => m.available_ways.map(w => ({ key: `c${m.id}${w}`, group: 'Connect', icon: <Icon name={w === 'terminal' ? 'terminal' : kindIcon(m.kind)} size={16} />, label: m.available_ways.length > 1 ? `${m.name} · ${w === 'terminal' ? 'Terminal' : 'Desktop'}` : m.name, sub: `${m.host}${m.status.state === 'online' ? ' · online' : m.status.state === 'offline' ? ' · offline' : ''}`, run: () => navigate(`/connect/${m.id}?way=${w}`) })))
     const files = n ? ms.filter(m => m.files_enabled).slice(0, 6).map(m => ({ key: `f${m.id}`, group: 'Files', icon: <Icon name="archive" size={16} />, label: `Files on ${m.name}`, run: () => navigate(`/machines/${m.id}/files`) })) : []
     out.push(...conn, ...files, ...cmds)
     return out

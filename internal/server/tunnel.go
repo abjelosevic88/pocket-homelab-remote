@@ -33,6 +33,7 @@ import (
 type ticket struct {
 	uid       int64
 	machineID int64
+	way       string // desktop | terminal
 	expires   time.Time
 	device    string
 	ip        string
@@ -167,8 +168,17 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		PIN string `json:"pin"`
+		Way string `json:"way"` // desktop | terminal; "" = the first one switched on
 	}
 	_ = decode(r, &in)
+	way := in.Way
+	if way == "" && len(m.Ways()) > 0 {
+		way = m.Ways()[0]
+	}
+	if (way != store.WayDesktop || !m.DesktopEnabled) && (way != store.WayTerminal || !m.TerminalEnabled) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "That way in is switched off for " + m.Name + " (Edit → Ways in)."})
+		return
+	}
 	st, _ := s.store.GetSettings(ctx, uid)
 	key := unlockKey(uid, r)
 	if st.PINHash != "" {
@@ -207,9 +217,9 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	tok := store.RandomToken(24)
 	s.ticketMu.Lock()
-	s.tickets[tok] = ticket{uid: uid, machineID: m.ID, expires: time.Now().Add(ticketTTL), device: deviceName(r.UserAgent()), ip: clientIP(r)}
+	s.tickets[tok] = ticket{uid: uid, machineID: m.ID, way: way, expires: time.Now().Add(ticketTTL), device: deviceName(r.UserAgent()), ip: clientIP(r)}
 	s.ticketMu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ticket": tok, "protocol": m.Protocol, "name": m.Name})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ticket": tok, "way": way, "protocol": m.ForWay(way).Protocol, "name": m.Name})
 }
 
 // takeTicket returns and removes a ticket that is still good.
@@ -348,11 +358,12 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid := t.uid
-	m, err := s.store.GetMachine(ctx, uid, t.machineID)
+	whole, err := s.store.GetMachine(ctx, uid, t.machineID)
 	if err != nil {
 		refuse("That machine is gone.", statusClientForbidden)
 		return
 	}
+	m := whole.ForWay(t.way) // the terminal: ssh on the SSH port
 	params, err := s.guacParams(m)
 	if err != nil {
 		refuse("The saved password cannot be read: "+err.Error(), statusServerError)
@@ -513,10 +524,10 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 	if strings.Contains(err.Error(), "not running") {
 		return err.Error()
 	}
-	st := s.checkOne(ctx, m)
+	st := probeWay(ctx, m) // m is already the way in that failed
 	if st.State == "online" {
 		if m.Protocol == "rdp" && m.Kind == "mac" {
-			return "A Mac has no Remote Desktop: choose Screen Sharing (Edit → Connect with)."
+			return "A Mac has no Remote Desktop: choose Screen Sharing (Edit → Desktop)."
 		}
 		return err.Error()
 	}
@@ -527,7 +538,7 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 		hint := ""
 		switch {
 		case m.Protocol == "rdp" && m.Kind == "mac":
-			hint = " A Mac has no Remote Desktop: choose Screen Sharing (Edit → Connect with), and switch it on in System Settings → General → Sharing."
+			hint = " A Mac has no Remote Desktop: choose Screen Sharing (Edit → Desktop), and switch it on in System Settings → General → Sharing."
 		case m.Protocol == "rdp" && m.Kind == "linux":
 			hint = " A Linux machine needs an RDP server (xrdp) and a desktop for this; or connect with Terminal."
 		case m.Protocol == "vnc" && m.Kind == "mac":
@@ -536,6 +547,12 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 			hint = " Switch on Remote Desktop in Settings → System → Remote Desktop."
 		case m.Protocol == "vnc":
 			hint = " Start a VNC server on it, or connect with Terminal."
+		case m.Protocol == "ssh" && m.Kind == "mac":
+			hint = " Switch on Remote Login in System Settings → General → Sharing."
+		case m.Protocol == "ssh" && m.Kind == "windows":
+			hint = " Add OpenSSH Server under Settings → Apps → Optional features."
+		case m.Protocol == "ssh":
+			hint = " Start its SSH server."
 		}
 		return fmt.Sprintf("Nothing on %s answers for %s (port %d).%s", m.Host, what, port, hint)
 	case strings.Contains(st.Detail, "no machine"):

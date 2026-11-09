@@ -1,6 +1,6 @@
 // /connect/:id — a computer's screen (or terminal), full screen, with a touch bar on phones.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Guacamole from 'guacamole-common-js'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
@@ -41,6 +41,8 @@ function typeText(client: Guacamole.Client, text: string) {
 
 export default function Connect() {
   const { id } = useParams()
+  const [sp] = useSearchParams()
+  const way = sp.get('way') === 'terminal' ? 'terminal' : sp.get('way') === 'desktop' ? 'desktop' : ''
   const navigate = useNavigate()
   const { settings } = useApp()
   const { toast } = useToast()
@@ -95,7 +97,11 @@ export default function Connect() {
     return () => { mq.removeEventListener('change', h); clearTimeout(t) }
   }, [touch, phase])
 
-  useEffect(() => { api.get<Machine>(`${V1}/machines/${id}`).then(setM).catch(e => { setError((e as Error).message); setPhase('ended') }) }, [id])
+  // the session's view of the computer: its terminal is "ssh"
+  useEffect(() => { api.get<Machine>(`${V1}/machines/${id}`).then(x => {
+    const w = way || x.available_ways[0] || (x.desktop_enabled ? 'desktop' : 'terminal')
+    setM(w === 'terminal' ? { ...x, protocol: 'ssh', port: x.ssh_port, effective_port: x.ssh_port } : x)
+  }).catch(e => { setError((e as Error).message); setPhase('ended') }) }, [id, way])
 
   const rescale = useCallback(() => {
     const c = clientRef.current, host = hostRef.current
@@ -123,7 +129,9 @@ export default function Connect() {
     teardown()
     setError(''); setPinErr('')
     let r: { ok: boolean; ticket?: string; need_pin?: boolean; error?: string }
-    try { r = await api.post(`${V1}/machines/${m.id}/connect`, withPin ? { pin: withPin } : {}) } catch (e) { setError((e as Error).message); setPhase('ended'); return }
+    const body: Record<string, string> = { way: m.protocol === 'ssh' ? 'terminal' : 'desktop' }
+    if (withPin) body.pin = withPin
+    try { r = await api.post(`${V1}/machines/${m.id}/connect`, body) } catch (e) { setError((e as Error).message); setPhase('ended'); return }
     if (r.need_pin) { setPhase('pin'); setPinErr(r.error || ''); return }
     if (!r.ok || !r.ticket) { setError(r.error || 'Could not connect.'); setPhase('ended'); return }
     setPhase('connecting')
