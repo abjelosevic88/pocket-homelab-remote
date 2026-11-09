@@ -6,7 +6,7 @@ JSON over HTTP under `/api/v1`. Authenticate with the session cookie, a personal
 
 | | |
 |---|---|
-| `GET /machines` | Your computers with `status` (`online`/`offline`/`unknown`, latency, why), `tailnet` (what Tailscale says), `live` (sessions open now), `has_password`, `has_key` |
+| `GET /machines` | Your computers with `status` (`online`/`offline`/`unknown`, latency, why, and `ways`: each way in on its own), `available_ways` (the ways in to offer now: switched on, and not refused by a computer that answers), `tailnet`, `live` (sessions open now), `has_password`, `has_key` |
 | `POST /machines` | Add one (below) |
 | `GET/PUT/DELETE /machines/{id}` | One computer; PUT takes any subset of the fields |
 | `POST /machines/{id}/check` | Check it now |
@@ -23,13 +23,13 @@ JSON over HTTP under `/api/v1`. Authenticate with the session cookie, a personal
  "notes": "", "favorite": true}
 ```
 
-`kind` is `mac`, `windows`, `linux` or `other`; `protocol` is `vnc` (Screen Sharing), `rdp` (Remote Desktop) or `ssh` (a terminal). `port: 0` = the usual one. `clear_password: true` / `clear_key: true` remove the saved ones.
+A computer has **ways in**: `desktop_enabled` (its screen, with `protocol` `vnc` = Screen Sharing or `rdp` = Remote Desktop, on `port`) and `terminal_enabled` (a shell over SSH on `ssh_port`, the same sign-in as files). At least one is on. `kind` is `mac`, `windows`, `linux` or `other`. `port: 0` = the usual one. An older client sending `protocol: ssh` gets the terminal way in. `clear_password: true` / `clear_key: true` remove the saved ones.
 
 ## Sessions
 
 | | |
 |---|---|
-| `POST /machines/{id}/connect` `{"pin": "…"}` | A one-time ticket for the tunnel (60 s). `{"need_pin": true}` when your connect PIN is asked |
+| `POST /machines/{id}/connect` `{"way": "desktop"\|"terminal", "pin": "…"}` | A one-time ticket for the tunnel (60 s) for that way in (`""` = the first one on). `{"need_pin": true}` when your connect PIN is asked |
 | `GET /tunnel?ticket=…&width&height&dpi&timezone` | The WebSocket tunnel (Guacamole protocol, subprotocol `guacamole`); needs the normal sign-in too |
 | `GET /sessions?machine&limit&offset` | The log, newest first: `{items, total, live}` |
 | `GET /sessions/live` | Sessions open right now |
