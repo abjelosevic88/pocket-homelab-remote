@@ -28,7 +28,7 @@ services:
   # Apache Guacamole's remote desktop engine: VNC, RDP and SSH.
   guacd:
     build:
-      context: ./deploy/guacd     # guacd 1.5.5 + a Nerd Font for terminal icons
+      context: ./deploy/guacd     # guacd 1.6.0 (amd64 + arm64) + a Nerd Font for terminal icons
     image: pocket-remote-guacd:local
     container_name: pocket-remote-guacd
     restart: unless-stopped
