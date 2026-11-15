@@ -30,9 +30,9 @@ A computer has **ways in**: `desktop_enabled` (its screen, with `protocol` `vnc`
 | | |
 |---|---|
 | `POST /machines/{id}/connect` `{"way": "desktop"\|"terminal", "pin": "…"}` | A one-time ticket for the tunnel (60 s) for that way in (`""` = the first one on). `{"need_pin": true}` when your connect PIN is asked |
-| `GET /tunnel?ticket=…&width&height&dpi&timezone` | The WebSocket tunnel (Guacamole protocol, subprotocol `guacamole`); needs the normal sign-in too |
+| `GET /tunnel?ticket=…&width&height&dpi&timezone` | The WebSocket tunnel (Guacamole protocol, subprotocol `guacamole`); needs the normal sign-in too. A terminal outlives its tunnel: when the tunnel drops without Guacamole's `disconnect` (an app in the background, a lost network), the shell is held for 15 minutes and the same person's next terminal tunnel to that computer takes it back (screen, scrollback and the half-typed line); `disconnect` ends it |
 | `GET /sessions?machine&limit&offset` | The log, newest first: `{items, total, live}` |
-| `GET /sessions/live` | Sessions open right now |
+| `GET /sessions/live` | Sessions open right now; `held: true` for a terminal waiting to be taken back |
 | `POST /sessions/{id}/end` | End one of your open sessions, from any device |
 | `GET /overview` | Online count, this week and 30 days, recent sessions, what is open, whether guacd answers |
 
