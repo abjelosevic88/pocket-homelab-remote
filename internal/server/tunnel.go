@@ -37,6 +37,7 @@ type ticket struct {
 	expires   time.Time
 	device    string
 	ip        string
+	devKey    string // this person on this device (unlockKey): a terminal held for it is theirs to take back
 }
 
 // liveSession is a tunnel that is open right now.
@@ -48,6 +49,7 @@ type liveSession struct {
 	device    string
 	started   time.Time
 	cancel    context.CancelFunc
+	held      atomic.Bool // a terminal kept open with no one looking (see held.go)
 }
 
 const ticketTTL = 60 * time.Second
@@ -217,7 +219,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	tok := store.RandomToken(24)
 	s.ticketMu.Lock()
-	s.tickets[tok] = ticket{uid: uid, machineID: m.ID, way: way, expires: time.Now().Add(ticketTTL), device: deviceName(r.UserAgent()), ip: clientIP(r)}
+	s.tickets[tok] = ticket{uid: uid, machineID: m.ID, way: way, expires: time.Now().Add(ticketTTL), device: deviceName(r.UserAgent()), ip: clientIP(r), devKey: key}
 	s.ticketMu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ticket": tok, "way": way, "protocol": m.ForWay(way).Protocol, "name": m.Name})
 }
@@ -390,52 +392,89 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	if m.Protocol == "rdp" && store.ParseOptions(m.Options).Audio {
 		cfg.Audio = []string{"audio/L16", "audio/L8"}
 	}
-	dctx, dcancel := context.WithTimeout(ctx, 25*time.Second)
-	gc, err := guac.Dial(dctx, s.cfg.GuacdAddr, cfg)
-	dcancel()
+	if m.Protocol == "ssh" {
+		// a terminal outlives the tunnel for a while (held.go)
+		s.serveTerminal(ctx, ws, send, refuse, t, m, cfg)
+		return
+	}
+	gc, err := s.dialGuacd(ctx, cfg)
 	if err != nil {
-		code := statusUpstreamError
-		var ge *guac.Error
-		if errors.As(err, &ge) && ge.Code > 0 {
-			code = ge.Code
-		}
-		if strings.Contains(err.Error(), "not running") {
-			code = statusUpstreamNotFound
-		}
-		s.log.Info("remote: connect failed", "machine", m.Name, "err", err)
-		refuse(s.connectFailure(ctx, m, err), code)
+		refuse(s.dialFailure(ctx, m, err))
 		return
 	}
 	defer gc.Close()
 
-	// log it
-	sess := store.RemoteSession{MachineID: &m.ID, MachineName: m.Name, Protocol: m.Protocol, Device: t.device, IP: t.ip}
-	if err := s.store.StartSession(ctx, uid, &sess); err != nil {
+	sess, ls, tctx, err := s.openSession(ctx, t, m)
+	if err != nil {
 		refuse("could not log the session", statusServerError)
 		return
 	}
-	_ = s.store.TouchMachine(ctx, uid, m.ID)
+	defer s.dropLive(sess.ID)
+	if err := send(tctx, guac.Encode("", gc.ID)); err != nil {
+		s.endSession(t.uid, sess, ls, "lost", 0, 0)
+		return
+	}
+	var bytesIn, bytesOut atomic.Int64
+	why, _ := s.relay(tctx, ws, send, gc, m, 0, &bytesIn, &bytesOut)
+	ls.cancel()
+	gc.Close()
+	ws.Close(websocket.StatusNormalClosure, "")
+	s.endSession(t.uid, sess, ls, why, bytesIn.Load(), bytesOut.Load())
+}
+
+// dialGuacd opens a guacd connection (or joins one, with cfg.Join).
+func (s *Server) dialGuacd(ctx context.Context, cfg guac.Config) (*guac.Conn, error) {
+	dctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	return guac.Dial(dctx, s.cfg.GuacdAddr, cfg)
+}
+
+// dialFailure is the message and status code for a connection guacd refused.
+func (s *Server) dialFailure(ctx context.Context, m store.Machine, err error) (string, int) {
+	code := statusUpstreamError
+	var ge *guac.Error
+	if errors.As(err, &ge) && ge.Code > 0 {
+		code = ge.Code
+	}
+	if strings.Contains(err.Error(), "not running") {
+		code = statusUpstreamNotFound
+	}
+	s.log.Info("remote: connect failed", "machine", m.Name, "err", err)
+	return s.connectFailure(ctx, m, err), code
+}
+
+// openSession logs a session, lists it as live and tells the person. The
+// context it returns ends when the session is ended from another device.
+func (s *Server) openSession(ctx context.Context, t ticket, m store.Machine) (store.RemoteSession, *liveSession, context.Context, error) {
+	sess := store.RemoteSession{MachineID: &m.ID, MachineName: m.Name, Protocol: m.Protocol, Device: t.device, IP: t.ip}
+	if err := s.store.StartSession(ctx, t.uid, &sess); err != nil {
+		return sess, nil, nil, err
+	}
+	_ = s.store.TouchMachine(ctx, t.uid, m.ID)
 	s.sessions.Add(1)
 	tctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	defer cancel()
-	ls := &liveSession{id: sess.ID, uid: uid, machineID: m.ID, machine: m.Name, device: t.device, started: time.Now(), cancel: cancel}
+	ls := &liveSession{id: sess.ID, uid: t.uid, machineID: m.ID, machine: m.Name, device: t.device, started: time.Now(), cancel: cancel}
 	s.liveMu.Lock()
 	s.live[sess.ID] = ls
 	s.liveMu.Unlock()
-	defer func() {
-		s.liveMu.Lock()
-		delete(s.live, sess.ID)
-		s.liveMu.Unlock()
-	}()
-	s.publish(tctx, uid, "remote.session_started", m.Name, map[string]any{"machine_id": m.ID, "machine": m.Name, "protocol": m.Protocol, "device": t.device, "session_id": sess.ID})
-	go s.notifySession(context.WithoutCancel(ctx), uid, m, t)
+	s.publish(tctx, t.uid, "remote.session_started", m.Name, map[string]any{"machine_id": m.ID, "machine": m.Name, "protocol": m.Protocol, "device": t.device, "session_id": sess.ID})
+	go s.notifySession(context.WithoutCancel(ctx), t.uid, m, t)
+	return sess, ls, tctx, nil
+}
 
-	if err := send(tctx, guac.Encode("", gc.ID)); err != nil {
-		s.endSession(uid, sess, ls, "lost", 0, 0)
-		return
-	}
+func (s *Server) dropLive(id int64) {
+	s.liveMu.Lock()
+	delete(s.live, id)
+	s.liveMu.Unlock()
+}
 
-	var bytesIn, bytesOut atomic.Int64
+// relay passes instructions between the browser and guacd until one side
+// goes. It says why, and whether the browser said goodbye (Guacamole's
+// "disconnect": the person ended the session, as opposed to the socket
+// dropping). idle > 0 drops a browser that has sent nothing for that long
+// (its tunnel pings twice a second; an iPhone app in the background sends nothing).
+func (s *Server) relay(tctx context.Context, ws *websocket.Conn, send func(context.Context, string) error, gc *guac.Conn, m store.Machine, idle time.Duration, bytesIn, bytesOut *atomic.Int64) (string, bool) {
+	var bye atomic.Bool
 	reason := make(chan string, 2)
 	// guacd → browser: whole instructions, a few at a time
 	go func() {
@@ -474,7 +513,12 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	// browser → guacd; the tunnel's own pings are answered here
 	go func() {
 		for {
-			_, data, err := ws.Read(tctx)
+			rctx, rcancel := tctx, context.CancelFunc(func() {})
+			if idle > 0 {
+				rctx, rcancel = context.WithTimeout(tctx, idle)
+			}
+			_, data, err := ws.Read(rctx)
+			rcancel()
 			if err != nil {
 				if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
 					reason <- "closed"
@@ -499,6 +543,9 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 					}
 					continue
 				}
+				if strings.HasPrefix(p, "10.disconnect") {
+					bye.Store(true)
+				}
 				if _, err := io.WriteString(gc, p); err != nil {
 					reason <- "lost"
 					return
@@ -512,10 +559,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	case <-tctx.Done():
 		why = "ended from another device"
 	}
-	cancel()
-	gc.Close()
-	ws.Close(websocket.StatusNormalClosure, "")
-	s.endSession(uid, sess, ls, why, bytesIn.Load(), bytesOut.Load())
+	return why, bye.Load()
 }
 
 // connectFailure words a failed connection plainly: when nothing answers on
@@ -588,6 +632,7 @@ type liveView struct {
 	Machine   string `json:"machine"`
 	Device    string `json:"device"`
 	StartedAt string `json:"started_at"`
+	Held      bool   `json:"held,omitempty"` // a terminal kept open with no one looking, to take back
 }
 
 func (s *Server) liveFor(uid int64) []liveView {
@@ -596,7 +641,7 @@ func (s *Server) liveFor(uid int64) []liveView {
 	out := []liveView{}
 	for _, l := range s.live {
 		if l.uid == uid {
-			out = append(out, liveView{l.id, l.machineID, l.machine, l.device, l.started.UTC().Format(time.RFC3339)})
+			out = append(out, liveView{l.id, l.machineID, l.machine, l.device, l.started.UTC().Format(time.RFC3339), l.held.Load()})
 		}
 	}
 	return out

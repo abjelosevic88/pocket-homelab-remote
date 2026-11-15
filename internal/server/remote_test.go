@@ -461,3 +461,99 @@ func TestWaysIn(t *testing.T) {
 		t.Fatalf("legacy ssh = %v %v %v", v2["terminal_enabled"], v2["desktop_enabled"], v2["ssh_port"])
 	}
 }
+
+// A terminal outlives its tunnel: a dropped tunnel leaves it held, connecting
+// again joins the same guacd connection (the same shell), the same device
+// connecting while its old tunnel still looks open takes it over, and ending
+// it (Guacamole's "disconnect") closes it for good.
+func TestTerminalHeld(t *testing.T) {
+	addr, got := fakeGuacd(t)
+	a := newTestApp(t, addr)
+	id := a.addMachine(a.alice, map[string]any{"name": "Box", "kind": "linux", "host": "127.0.0.1", "protocol": "ssh", "port": 2222, "username": "me", "password": "pw"})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	open := func() *websocket.Conn {
+		t.Helper()
+		_, r, raw := a.do(a.alice, "POST", fmt.Sprintf("/api/v1/machines/%d/connect", id), map[string]any{"way": "terminal"})
+		tk, _ := r["ticket"].(string)
+		if tk == "" {
+			t.Fatalf("no ticket: %s", raw)
+		}
+		c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(a.ts.URL, "http")+"/api/v1/tunnel?ticket="+tk, &websocket.DialOptions{Subprotocols: []string{"guacamole"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, first, err := c.Read(ctx); err != nil || !strings.HasPrefix(string(first), "0.,") {
+			t.Fatalf("first message = %q %v", first, err)
+		}
+		return c
+	}
+	// the selects guacd saw, in order (keep-alives and relays skipped)
+	selects := func(n int) []string {
+		t.Helper()
+		var out []string
+		for len(out) < n {
+			select {
+			case v := <-got:
+				if strings.HasPrefix(v, "select:") {
+					out = append(out, v)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatalf("selects so far %v, want %d", out, n)
+			}
+		}
+		return out
+	}
+	until := func(what string, ok func() bool) {
+		t.Helper()
+		for end := time.Now().Add(3 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			if ok() {
+				return
+			}
+		}
+		t.Fatalf("never: %s", what)
+	}
+	held := func() bool { l := a.s.liveFor(1); return len(l) == 1 && l[0].Held }
+
+	c1 := open()
+	if s := selects(2); s[0] != "select:ssh" || s[1] != "select:$abc" {
+		t.Fatalf("first open = %v, want a new connection and a join", s)
+	}
+	c1.Close(websocket.StatusNormalClosure, "") // the app went to the background
+	until("held", held)
+
+	c2 := open()
+	if s := selects(1); s[0] != "select:$abc" {
+		t.Fatalf("second open = %v, want a join only", s)
+	}
+	until("taken back", func() bool { return !held() && len(a.s.liveFor(1)) == 1 })
+
+	// back from another app with the old tunnel still open: this one takes over
+	c3 := open()
+	if s := selects(1); s[0] != "select:$abc" {
+		t.Fatalf("take over = %v", s)
+	}
+	if _, _, err := c2.Read(ctx); err == nil {
+		// drain until the old tunnel is cut
+		for err == nil {
+			_, _, err = c2.Read(ctx)
+		}
+	}
+	if l := a.s.liveFor(1); len(l) != 1 || l[0].Held {
+		t.Fatalf("after take over live = %v", l)
+	}
+
+	// End: the browser says disconnect, and the terminal closes
+	c3.Write(ctx, websocket.MessageText, []byte(guac.Encode("disconnect")))
+	c3.Close(websocket.StatusNormalClosure, "")
+	until("ended", func() bool {
+		rs, _, _ := a.st.ListSessions(context.Background(), 1, store.SessionFilter{})
+		return len(rs) == 1 && rs[0].EndedAt != "" && rs[0].EndReason == "closed" && len(a.s.liveFor(1)) == 0
+	})
+	a.s.heldMu.Lock()
+	n := len(a.s.held)
+	a.s.heldMu.Unlock()
+	if n != 0 {
+		t.Fatalf("%d terminals still held", n)
+	}
+}

@@ -224,6 +224,7 @@ func instructionEnd(s string) (int, error) {
 // (hostname, port, username, password, …, by guacd's parameter names).
 type Config struct {
 	Protocol   string
+	Join       string // a running connection's id ("$…"): join it as another user instead of opening a new one
 	Params     map[string]string
 	Width      int
 	Height     int
@@ -274,7 +275,11 @@ func Dial(ctx context.Context, addr string, cfg Config) (*Conn, error) {
 		_, err := io.WriteString(nc, Encode(op, args...))
 		return err
 	}
-	if err := send("select", cfg.Protocol); err != nil {
+	sel := cfg.Protocol
+	if cfg.Join != "" {
+		sel = cfg.Join
+	}
+	if err := send("select", sel); err != nil {
 		return fail(err)
 	}
 	args, err := c.expect("args")
