@@ -62,3 +62,5 @@ No link reaches a session, the tunnel, files or settings.
 ## Account, settings, data
 
 `/auth/*`, `/settings` (`pin` + `pin_current` to set or change the connect PIN, `pin_clear`), `/users`, `/tokens`, `/backup` (admins), `/export.json`, `/export.csv` (sessions), `/import` — as in every Pocket app.
+
+Pocket Move can copy your computers, sessions and transfers out and bring them in (`GET /pocket/portable`; link scopes `move:export` / `move:import`). Passwords and private keys stay behind: they are set again on the new box.

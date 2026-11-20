@@ -21,6 +21,20 @@ var linkOffers = []core.Offer{
 	{Scope: "remote:wake", Name: "Wake your computers", Description: "Send a Wake-on-LAN signal to one of your computers (\"wake my PC\"). It cannot open a session or see the screen."},
 }
 
+// portable is what Pocket Move may copy out and bring in for a person
+// (docs/move.md in pocket-homelab-core); Register adds move:export/import.
+// Passwords and private keys never leave: the export has the computers
+// without them, and they are typed in again on the new box.
+var portable = &core.Portable{
+	Exports: []core.PortableExport{
+		{Path: "/api/v1/export.json", File: "remote.json", Kind: core.KindPocket, Title: "Your computers (without their passwords and keys), sessions and file transfers"},
+		{Path: "/api/v1/export.csv", File: "sessions.csv", Kind: core.KindCSV, Title: "Your remote sessions as a table"},
+	},
+	Imports: []core.PortableImport{
+		{Path: "/api/v1/import", Kind: core.KindPocket, ContentType: "application/json", MaxBytes: 32 << 20, Title: "Adds the computers, sessions and transfers from another box (sign-in passwords and keys are set again); what you already have is left alone"},
+	},
+}
+
 type linkRoute struct {
 	methods string
 	path    *regexp.Regexp
@@ -39,6 +53,9 @@ var errLinkScope = errors.New("outside the link's scope")
 
 // linkAllows reports whether a link token with these scopes may make this request.
 func linkAllows(scopes []string, r *http.Request) bool {
+	if portable.LinkAllows(scopes, r) {
+		return true
+	}
 	for _, lr := range linkRoutes {
 		if !strings.Contains(" "+lr.methods+" ", " "+r.Method+" ") || !lr.path.MatchString(r.URL.Path) {
 			continue
