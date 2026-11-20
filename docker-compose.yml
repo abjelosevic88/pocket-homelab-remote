@@ -27,9 +27,11 @@ services:
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
   # Apache Guacamole's remote desktop engine: VNC, RDP and SSH.
   guacd:
+    # guacd 1.6.0 (amd64 + arm64) + a Nerd Font for terminal icons, published with each release;
+    # `docker compose build guacd` builds it from ./deploy/guacd instead.
+    image: ghcr.io/abjelosevic88/pocket-homelab-remote-guacd:latest
     build:
-      context: ./deploy/guacd     # guacd 1.6.0 (amd64 + arm64) + a Nerd Font for terminal icons
-    image: pocket-remote-guacd:local
+      context: ./deploy/guacd
     container_name: pocket-remote-guacd
     restart: unless-stopped
     network_mode: host
