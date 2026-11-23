@@ -49,6 +49,8 @@ func (s *Server) Router() http.Handler {
 		// the session tunnel: its one-time ticket is the credential (the app's
 		// web view has no cookie); a signed-in caller must be the ticket's person
 		r.Get("/tunnel", s.handleTunnel)
+		// Pocket Remote Agent, through Pocket Core's relay: Core's agent token is the credential
+		r.Get("/agent/link", s.handleAgentLink)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
@@ -68,6 +70,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/machines/{id}/wake", s.handleWake)
 			r.Post("/machines/{id}/connect", s.handleConnect)
 			r.Post("/machines/{id}/trust-again", s.handleForgetHostKey)
+			r.Post("/agents/pair-link", s.handleAgentPairLink)
 			r.Get("/tailnet", s.handleTailnet)
 
 			// files on a machine
@@ -119,7 +122,7 @@ func (s *Server) timeoutExcept(next http.Handler) http.Handler {
 	limited := middleware.Timeout(120 * time.Second)(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
-		if p == "/api/v1/tunnel" || (strings.HasPrefix(p, "/api/v1/machines/") && strings.Contains(p, "/files/")) {
+		if p == "/api/v1/tunnel" || p == "/api/v1/agent/link" || (strings.HasPrefix(p, "/api/v1/machines/") && strings.Contains(p, "/files/")) {
 			next.ServeHTTP(w, r)
 			return
 		}

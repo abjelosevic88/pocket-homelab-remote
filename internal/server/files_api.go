@@ -54,6 +54,9 @@ func (s *Server) openSFTP(ctx context.Context, uid int64, m store.Machine) (*sft
 	if isDemoHost(m.Host) {
 		return nil, errors.New("this is a demo machine; add one of your own computers to see its files")
 	}
+	if m.AgentID > 0 {
+		return s.openAgentSFTP(ctx, m)
+	}
 	pass, err := s.seal.Open(m.Secret)
 	if err != nil {
 		return nil, err
@@ -474,4 +477,33 @@ func (s *Server) filesDAV(ctx context.Context, uid int64) (*webdav.Client, strin
 		return nil, "", errors.New("Pocket Core gave no address for Pocket Files")
 	}
 	return &webdav.Client{Root: strings.TrimRight(lt.URL, "/") + "/dav", User: "pocket-remote", Password: lt.AccessToken, UserAgent: s.cfg.UserAgent}, folder, nil
+}
+
+// openAgentSFTP reaches files through Pocket Remote Agent's own SSH server
+// (one-time password; the host key is the one the agent declared over Core's
+// pairing).
+func (s *Server) openAgentSFTP(ctx context.Context, m store.Machine) (*sftpConn, error) {
+	nc, pass, err := s.agentSSH(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	hostKey := func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		if m.HostKey != "" && strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key))) != m.HostKey {
+			return errHostKeyChanged
+		}
+		return nil
+	}
+	cfg := &ssh.ClientConfig{User: s.agentLogin(m), Auth: []ssh.AuthMethod{ssh.Password(pass)}, HostKeyCallback: hostKey, Timeout: 15 * time.Second}
+	cc, chans, reqs, err := ssh.NewClientConn(nc, "agent", cfg)
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("Pocket Remote Agent on %s: %w", m.Name, err)
+	}
+	sc := ssh.NewClient(cc, chans, reqs)
+	fc, err := sftp.NewClient(sc)
+	if err != nil {
+		sc.Close()
+		return nil, fmt.Errorf("Pocket Remote Agent on %s did not offer files: %w", m.Name, err)
+	}
+	return &sftpConn{ssh: sc, sftp: fc}, nil
 }

@@ -25,6 +25,15 @@ JSON over HTTP under `/api/v1`. Authenticate with the session cookie, a personal
 
 A computer has **ways in**: `desktop_enabled` (its screen, with `protocol` `vnc` = Screen Sharing or `rdp` = Remote Desktop, on `port`) and `terminal_enabled` (a shell over SSH on `ssh_port`, the same sign-in as files). At least one is on. `kind` is `mac`, `windows`, `linux` or `other`. `port: 0` = the usual one. An older client sending `protocol: ssh` gets the terminal way in. `clear_password: true` / `clear_key: true` remove the saved ones.
 
+## Computers anywhere (Pocket Remote Agent)
+
+| | |
+|---|---|
+| `POST /api/v1/agents/pair-link` | A one-time link (10 min) for Pocket Remote Agent, made by Pocket Core for the signed-in person: `{url, address, expires_at}`. `409` with `code` `no_core`, `remote_off`, `app_off` or `old_core` says what is missing. |
+| `GET /api/v1/agent/link` (WebSocket, subprotocol `pocket-agent.v1`) | The agent's link, reached only through Pocket Core's relay with an agent token (`scope: agent`). The first agent connection adds its computer (`agent_id` set on the machine, `agent` in its JSON). |
+
+Over the link (internal/agentlink): many byte streams with flow control. Pocket Remote opens `{"kind":"ssh","password":…}` (the agent's own SSH server, one-time password: terminal and files) or `{"kind":"tcp","port":5900}` (Screen Sharing). guacd reaches a stream through a one-shot port on `AGENT_BRIDGE_LISTEN` (default 127.0.0.1) that it dials as `AGENT_BRIDGE_HOST`. Deleting the computer tells the agent to unpair.
+
 ## Sessions
 
 | | |

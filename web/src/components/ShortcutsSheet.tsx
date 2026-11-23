@@ -2,7 +2,7 @@ import { Modal } from './ui'
 
 const GROUPS: { title: string; keys: [string[], string][] }[] = [
   { title: 'Go to', keys: [[['h'], 'Computers'], [['s'], 'Sessions'], [[','], 'Settings'], [['/'], 'Search & commands'], [['⌘', 'K'], 'Search & commands']] },
-  { title: 'Computers', keys: [[['n'], 'Add a computer'], [['t'], 'Add from your tailnet']] },
+  { title: 'Computers', keys: [[['n'], 'Add a computer'], [['t'], 'Add from your tailnet'], [['a'], 'Add a computer anywhere (agent)']] },
   { title: 'In a session', keys: [[['all keys'], 'Go to the computer'], [['ctrl', 'alt', 'shift'], 'Show the session menu']] },
   { title: 'Window', keys: [[['['], 'Show or hide the sidebar'], [['esc'], 'Close a dialog or menu']] },
   { title: 'Help', keys: [[['?'], 'This sheet']] },

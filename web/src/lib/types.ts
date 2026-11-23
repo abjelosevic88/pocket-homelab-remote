@@ -40,6 +40,8 @@ export interface Machine {
   favorite: boolean; sort: number; tailnet_id: string; last_used_at: string; last_online_at: string
   created_at: string; updated_at: string
   has_password: boolean; has_key: boolean; status: MachineStatus; tailnet?: TailnetDevice; live: number
+  /** Set for a computer reached through Pocket Remote Agent. */
+  agent_id: number; agent?: { connected: boolean; since?: string; login?: string; os?: string; version?: string }
 }
 
 export interface RemoteSession {

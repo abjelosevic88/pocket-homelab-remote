@@ -201,13 +201,15 @@ type machineView struct {
 	Status      machineStatus   `json:"status"`
 	Available   []string        `json:"available_ways"` // the ways in to offer now
 	Tailnet     *tailnet.Device `json:"tailnet,omitempty"`
-	Live        int             `json:"live"` // sessions open right now
+	Live        int             `json:"live"`            // sessions open right now
+	Agent       *agentView      `json:"agent,omitempty"` // Pocket Remote Agent, for a computer reached through one
 }
 
 func (s *Server) view(m store.Machine, devs []tailnet.Device) machineView {
 	v := machineView{Machine: m, Port: m.EffectivePort(), HasPassword: m.Secret != "", HasKey: m.PrivateKey != "", Status: s.statusOf(m.ID)}
 	v.Available = v.Status.available(m)
-	if d, ok := tailnet.Match(devs, m.Host); ok {
+	v.Agent = s.agentViewOf(m)
+	if d, ok := tailnet.Match(devs, m.Host); ok && m.AgentID == 0 {
 		v.Tailnet = &d
 	}
 	v.Live = s.liveCount(m.UserID, m.ID)
@@ -334,6 +336,12 @@ func (s *Server) handleUpdateMachine(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
+	if m.AgentID > 0 {
+		// reached through its agent: no address, port or tailnet of its own
+		for _, k := range []string{"host", "ssh_port", "tailnet_id", "mac_address", "wol_broadcast"} {
+			delete(keys, k)
+		}
+	}
 	host, sshPort := m.Host, m.SSHPort
 	if msg := in.apply(&m, keys); msg != "" {
 		writeErr(w, http.StatusBadRequest, msg)
@@ -357,6 +365,9 @@ func (s *Server) handleUpdateMachine(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteMachine(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := idParam(r, "id")
+	if m, err := s.store.GetMachine(ctx, actorID(ctx), id); err == nil && m.AgentID > 0 {
+		s.agentRemoved(ctx, m)
+	}
 	if err := s.store.DeleteMachine(ctx, actorID(ctx), id); err != nil {
 		s.fail(w, err, "delete machine")
 		return
@@ -430,7 +441,7 @@ func (s *Server) statusOf(id int64) machineStatus {
 func isDemoHost(h string) bool { return strings.HasSuffix(strings.ToLower(h), ".demo") }
 
 // probe checks every way in that is switched on, side by side.
-func probe(ctx context.Context, m store.Machine) machineStatus {
+func (s *Server) probe(ctx context.Context, m store.Machine) machineStatus {
 	now := store.Now()
 	st := machineStatus{State: "offline", CheckedAt: now, Ways: map[string]wayStatus{}}
 	ways := m.Ways()
@@ -440,7 +451,7 @@ func probe(ctx context.Context, m store.Machine) machineStatus {
 		wg.Add(1)
 		go func(w string) {
 			defer wg.Done()
-			ws := probeWay(ctx, m.ForWay(w))
+			ws := s.probeWay(ctx, m.ForWay(w))
 			mu.Lock()
 			st.Ways[w] = ws
 			mu.Unlock()
@@ -471,8 +482,11 @@ func probe(ctx context.Context, m store.Machine) machineStatus {
 	return st
 }
 
-// probeWay dials one way's port.
-func probeWay(ctx context.Context, m store.Machine) wayStatus {
+// probeWay dials one way's port (through the agent for an agent's computer).
+func (s *Server) probeWay(ctx context.Context, m store.Machine) wayStatus {
+	if m.AgentID > 0 {
+		return s.agentProbe(ctx, m)
+	}
 	if isDemoHost(m.Host) {
 		if m.Favorite || m.Kind == "linux" {
 			return wayStatus{State: "online", LatencyMS: 8 + int(m.ID*7%30)}
@@ -516,7 +530,7 @@ func protocolName(p string) string {
 func (s *Server) checkOne(ctx context.Context, m store.Machine) machineStatus {
 	c, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	st := probe(c, m)
+	st := s.probe(c, m)
 	s.statusMu.Lock()
 	prev, had := s.status[m.ID]
 	if st.State == "offline" && prev.Waking != "" {

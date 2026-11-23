@@ -52,6 +52,9 @@ type Server struct {
 	heldMu sync.Mutex
 	held   map[int64]*heldTerm // remote session id → a terminal kept between tunnels (held.go)
 
+	agentsMu sync.Mutex
+	agents   map[int64]*agentConn // agent id → its link (agents.go)
+
 	oidcMu sync.Mutex
 	oidc   *oidcProvider // for the issuer in use; rebuilt when it changes
 
@@ -75,7 +78,7 @@ func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Se
 		resolved: map[string]resolvedURL{},
 		tailnet:  tailnet.New(cfg.TailscaleSocket),
 		status:   map[int64]machineStatus{}, tickets: map[string]ticket{}, unlocks: map[string]time.Time{},
-		pinFails: map[int64][]time.Time{}, live: map[int64]*liveSession{}, held: map[int64]*heldTerm{}}
+		pinFails: map[int64][]time.Time{}, live: map[int64]*liveSession{}, held: map[int64]*heldTerm{}, agents: map[int64]*agentConn{}}
 }
 
 // Bootstrap seeds the first admin (if configured), the owner's integration

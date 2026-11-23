@@ -30,6 +30,7 @@ export default function Machines() {
         </div>
         <div className="row">
           {tailnet && <button type="button" className="btn" onClick={() => openCreate('tailnet')}><Icon name="wifi" size={15} />From your tailnet</button>}
+          <button type="button" className="btn" onClick={() => openCreate('agent')} title="A Mac outside your tailnet, through Pocket Remote Agent"><Icon name="globe" size={15} />Anywhere</button>
           <button type="button" className="btn primary" onClick={() => openCreate('machine')}><Icon name="plus" size={15} />Add a computer</button>
         </div>
       </div>
@@ -73,7 +74,7 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
         <span className={`mc-ico k-${m.kind}`}><Icon name={kindIcon(m.kind)} size={22} /></span>
         <div className="grow mc-title">
           <h3 className="ellipsis">{m.name}{m.favorite && <Icon name="star" size={13} className="mc-fav" />}</h3>
-          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.host}</div>
+          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.agent_id ? <span className="agent-tag" title="Reached through Pocket Remote Agent, via Pocket Core's relay"><Icon name="globe" size={11} />agent</span> : m.host}</div>
         </div>
         <MenuButton label={`More for ${m.name}`} align="right" items={[
           { label: 'Edit', icon: 'edit', onSelect: () => openEdit(m) },
@@ -91,7 +92,8 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
       </div>
       <div className="mc-meta muted small">
         {m.live > 0 ? <span className="ok">Open now{m.live > 1 ? ` (${m.live})` : ''}</span> : m.last_used_at ? `Last used ${ago(m.last_used_at)}` : 'Not used yet'}
-        {!m.has_password && !m.has_key && m.protocol !== 'vnc' && <span className="warn-text"> · no sign-in saved</span>}
+        {!m.agent_id && !m.has_password && !m.has_key && m.protocol !== 'vnc' && <span className="warn-text"> · no sign-in saved</span>}
+        {m.agent_id > 0 && m.desktop_enabled && !m.has_password && <span className="warn-text"> · Screen Sharing needs the Mac's password (Edit)</span>}
       </div>
       <div className="mc-actions">
         {m.available_ways.map((w, i) => (
@@ -114,6 +116,7 @@ function Welcome({ tailnet }: { tailnet: boolean }) {
       </Empty>
       <div className="row center wrap">
         {tailnet && <button type="button" className="btn" onClick={() => openCreate('tailnet')}><Icon name="wifi" size={15} />Pick from your tailnet</button>}
+        <button type="button" className="btn" onClick={() => openCreate('agent')}><Icon name="globe" size={15} />A computer anywhere</button>
         <button type="button" className="btn primary" onClick={() => openCreate('machine')}><Icon name="plus" size={15} />Add a computer</button>
       </div>
       <div className="how-grid">

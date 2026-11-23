@@ -38,6 +38,10 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(x => ({ ...x, [k]: v }))
   const setKind = (k: Kind) => setF(x => machine ? { ...x, kind: k } : ({ ...x, kind: k, protocol: DEFAULT_PROTOCOL[k], files_enabled: k !== 'windows', desktop: k !== 'linux', terminal: k === 'mac' || k === 'linux' }))
   const p = f.protocol
+  // A computer reached through Pocket Remote Agent: no address, SSH or wake of its own;
+  // its terminal and files need no sign-in, only Screen Sharing does.
+  const agent = !!machine?.agent_id
+  const signIn = !agent || f.desktop
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,10 +70,11 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
         <Field group label="What is it">
           <Segmented value={f.kind} onChange={setKind} options={(['mac', 'windows', 'linux', 'other'] as Kind[]).map(k => ({ value: k, label: KIND_NAME[k] }))} />
         </Field>
-        <p className="mf-how muted small"><Icon name="info" size={13} /><span>{HOW[f.kind]}</span></p>
+        <p className="mf-how muted small"><Icon name="info" size={13} /><span>{agent ? <>Reached through <b>Pocket Remote Agent</b>: the terminal and files need nothing else on it. For the desktop, switch on <b>Screen Sharing</b> in its Sharing settings.</> : HOW[f.kind]}</span></p>
         <div className="two-col tight">
           <Field label="Name"><input value={f.name} onChange={e => set('name', e.target.value)} placeholder={f.kind === 'mac' ? 'MacBook Pro' : f.kind === 'windows' ? 'Gaming PC' : 'Home server'} required maxLength={80} autoFocus={!machine} /></Field>
-          <Field label="Address" help="Its tailnet name (macbook-pro) or an IP address."><input value={f.host} onChange={e => set('host', e.target.value)} placeholder="macbook-pro" required autoCapitalize="off" autoCorrect="off" spellCheck={false} /></Field>
+          {agent ? <Field label="Reached through" help={machine?.agent?.connected ? `Connected${machine.agent.login ? ` as ${machine.agent.login}` : ''}${machine.agent.version ? ` · agent ${machine.agent.version}` : ''}` : 'Not connected now'}><input value="Pocket Remote Agent" readOnly /></Field>
+            : <Field label="Address" help="Its tailnet name (macbook-pro) or an IP address."><input value={f.host} onChange={e => set('host', e.target.value)} placeholder="macbook-pro" required autoCapitalize="off" autoCorrect="off" spellCheck={false} /></Field>}
         </div>
         <h4 className="mf-h"><Icon name="log-in" size={14} />Ways in</h4>
         <div className="mf-ways">
@@ -80,15 +85,16 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
           </div>
           <div className={`mf-way ${f.terminal ? 'on' : ''}`}>
             <Toggle checked={f.terminal} onChange={v => set('terminal', v)} label="Terminal" />
-            <span className="muted small grow">A shell over SSH, with the same sign-in.</span>
-            {f.terminal && <label className="mf-port small">SSH port <input type="number" min={1} max={65535} value={f.ssh_port} onChange={e => set('ssh_port', e.target.value)} /></label>}
+            <span className="muted small grow">{agent ? 'A shell on it, through the agent.' : 'A shell over SSH, with the same sign-in.'}</span>
+            {f.terminal && !agent && <label className="mf-port small">SSH port <input type="number" min={1} max={65535} value={f.ssh_port} onChange={e => set('ssh_port', e.target.value)} /></label>}
           </div>
           {!f.desktop && !f.terminal && <p className="mf-warn small"><Icon name="alert" size={13} /><span>Switch on at least one way in.</span></p>}
         </div>
         {f.desktop && f.kind === 'mac' && p === 'rdp' && <p className="mf-warn small"><Icon name="alert" size={13} /><span>A Mac has no Remote Desktop. Choose <b>Screen Sharing</b>.</span></p>}
         {f.desktop && f.kind === 'windows' && p === 'vnc' && <p className="mf-warn small"><Icon name="alert" size={13} /><span>Windows has no Screen Sharing (VNC) unless you installed a VNC server. Usually choose <b>Remote Desktop</b>.</span></p>}
+        {signIn && <>
         <h4 className="mf-h"><Icon name="key" size={14} />Sign-in</h4>
-        <p className="muted small mf-note">Kept encrypted on the server; it never comes back to this browser.</p>
+        <p className="muted small mf-note">{agent ? 'For Screen Sharing only: the Mac account and password. ' : ''}Kept encrypted on the server; it never comes back to this browser.</p>
         <div className={f.desktop && p === 'rdp' ? 'three-col tight' : 'two-col tight'}>
           <Field label="User name" help={f.desktop && !f.terminal && p === 'vnc' && f.kind !== 'mac' ? 'Most VNC servers only need the password.' : undefined}><input value={f.username} onChange={e => set('username', e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} /></Field>
           <Field label="Password" help={machine?.has_password && !clearPw ? <>Saved. Type to replace · <button type="button" className="link-btn" onClick={() => setClearPw(true)}>remove it</button></> : clearPw ? 'Will be removed when you save.' : undefined}>
@@ -96,22 +102,25 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
           </Field>
           {f.desktop && p === 'rdp' && <Field label="Domain" help="Usually empty."><input value={f.domain} onChange={e => set('domain', e.target.value)} autoComplete="off" /></Field>}
         </div>
-        {(f.terminal || f.files_enabled) && <Field label="Private key (optional)" help={machine?.has_key && !clearKey ? <>A key is saved. Paste to replace · <button type="button" className="link-btn" onClick={() => setClearKey(true)}>remove it</button></> : 'An OpenSSH key instead of the password, for the terminal and files. If it has a passphrase, put it in Password.'}>
+        </>}
+        {!agent && (f.terminal || f.files_enabled) && <Field label="Private key (optional)" help={machine?.has_key && !clearKey ? <>A key is saved. Paste to replace · <button type="button" className="link-btn" onClick={() => setClearKey(true)}>remove it</button></> : 'An OpenSSH key instead of the password, for the terminal and files. If it has a passphrase, put it in Password.'}>
           <textarea className="mono mf-key" value={f.private_key} onChange={e => { set('private_key', e.target.value); setClearKey(false) }} placeholder={machine?.has_key && !clearKey ? '•••• a key is saved' : '-----BEGIN OPENSSH PRIVATE KEY-----'} rows={3} spellCheck={false} />
         </Field>}
 
-        {!more && <button type="button" className="conn-advanced" onClick={() => setMore(true)}><Icon name="plus" size={13} />Wake it up, files, notes</button>}
+        {!more && <button type="button" className="conn-advanced" onClick={() => setMore(true)}><Icon name="plus" size={13} />{agent ? 'Files, notes' : 'Wake it up, files, notes'}</button>}
         {more && <>
+          {!agent && <>
           <h4 className="mf-h"><Icon name="power" size={14} />Wake it up</h4>
           <div className="two-col tight">
             <Field label="Network card address" help="For Wake-on-LAN, on your home network only. Mac: System Settings → Network → Details → Hardware. Windows: getmac."><input value={f.mac_address} onChange={e => set('mac_address', e.target.value)} placeholder="a4:83:e7:12:9c:01" className="mono" autoCapitalize="off" spellCheck={false} /></Field>
             <Field label="Send to (optional)" help="Your network's broadcast address; empty = 255.255.255.255."><input value={f.wol_broadcast} onChange={e => set('wol_broadcast', e.target.value)} placeholder="192.168.1.255" className="mono" /></Field>
           </div>
+          </>}
           <h4 className="mf-h"><Icon name="folder" size={14} />Files</h4>
           <div className="mf-row">
             <Switch checked={f.files_enabled} onChange={v => set('files_enabled', v)} label="Browse its files" />
-            <span className="grow small">Browse, download, upload and save to Pocket Files, over SFTP with the same sign-in.</span>
-            {f.files_enabled && !f.terminal && <label className="mf-port small">SSH port <input type="number" min={1} max={65535} value={f.ssh_port} onChange={e => set('ssh_port', e.target.value)} /></label>}
+            <span className="grow small">{agent ? 'Browse, download, upload and save to Pocket Files, through the agent.' : 'Browse, download, upload and save to Pocket Files, over SFTP with the same sign-in.'}</span>
+            {f.files_enabled && !f.terminal && !agent && <label className="mf-port small">SSH port <input type="number" min={1} max={65535} value={f.ssh_port} onChange={e => set('ssh_port', e.target.value)} /></label>}
           </div>
           <Field label="Notes"><textarea value={f.notes} onChange={e => set('notes', e.target.value)} rows={2} maxLength={4000} placeholder="Where it is, who uses it, what to know before connecting." /></Field>
           <div className="mf-row"><Switch checked={f.favorite} onChange={v => set('favorite', v)} label="Favourite" /><span className="grow small">Favourite: first in the list, and a message when it goes offline (if you switched that on).</span></div>

@@ -8,7 +8,7 @@ import (
 
 const machineCols = `id, user_id, name, kind, host, protocol, port, username, secret, private_key, domain,
 	mac_address, wol_broadcast, files_enabled, ssh_port, host_key, options, notes, favorite, sort, tailnet_id,
-	last_used_at, last_online_at, created_at, updated_at, desktop_enabled, terminal_enabled`
+	last_used_at, last_online_at, created_at, updated_at, desktop_enabled, terminal_enabled, agent_id`
 
 func scanMachine(sc interface{ Scan(...any) error }) (Machine, error) {
 	var m Machine
@@ -16,7 +16,7 @@ func scanMachine(sc interface{ Scan(...any) error }) (Machine, error) {
 	var opts string
 	err := sc.Scan(&m.ID, &m.UserID, &m.Name, &m.Kind, &m.Host, &m.Protocol, &m.Port, &m.Username, &m.Secret, &m.PrivateKey, &m.Domain,
 		&m.MACAddress, &m.WOLBroadcast, &files, &m.SSHPort, &m.HostKey, &opts, &m.Notes, &fav, &m.Sort, &m.TailnetID,
-		&m.LastUsedAt, &m.LastOnlineAt, &m.CreatedAt, &m.UpdatedAt, &desk, &term)
+		&m.LastUsedAt, &m.LastOnlineAt, &m.CreatedAt, &m.UpdatedAt, &desk, &term, &m.AgentID)
 	m.FilesEnabled, m.Favorite = files == 1, fav == 1
 	m.DesktopEnabled, m.TerminalEnabled = desk == 1, term == 1
 	if !json.Valid([]byte(opts)) {
@@ -82,11 +82,11 @@ func (s *Store) CreateMachine(ctx context.Context, uid int64, m *Machine) error 
 	}
 	res, err := s.DB.ExecContext(ctx, `INSERT INTO machines (user_id, name, kind, host, protocol, port, username, secret, private_key, domain,
 		mac_address, wol_broadcast, files_enabled, ssh_port, host_key, options, notes, favorite, sort, tailnet_id, last_used_at, last_online_at,
-		desktop_enabled, terminal_enabled)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		desktop_enabled, terminal_enabled, agent_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		uid, m.Name, m.Kind, m.Host, m.Protocol, m.Port, m.Username, m.Secret, m.PrivateKey, m.Domain,
 		m.MACAddress, m.WOLBroadcast, boolInt(m.FilesEnabled), m.SSHPort, m.HostKey, optionsText(m.Options), m.Notes, boolInt(m.Favorite), m.Sort, m.TailnetID,
-		m.LastUsedAt, m.LastOnlineAt, boolInt(m.DesktopEnabled), boolInt(m.TerminalEnabled))
+		m.LastUsedAt, m.LastOnlineAt, boolInt(m.DesktopEnabled), boolInt(m.TerminalEnabled), m.AgentID)
 	if err != nil {
 		return err
 	}

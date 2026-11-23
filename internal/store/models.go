@@ -50,10 +50,13 @@ type Machine struct {
 	Favorite        bool            `json:"favorite"`
 	Sort            int             `json:"sort"`
 	TailnetID       string          `json:"tailnet_id"`
-	LastUsedAt      string          `json:"last_used_at"`
-	LastOnlineAt    string          `json:"last_online_at"`
-	CreatedAt       string          `json:"created_at"`
-	UpdatedAt       string          `json:"updated_at"`
+	// AgentID is set for a computer reached through Pocket Remote Agent
+	// (agents.go): no address of its own, everything goes through the agent.
+	AgentID      int64  `json:"agent_id"`
+	LastUsedAt   string `json:"last_used_at"`
+	LastOnlineAt string `json:"last_online_at"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 // DefaultPort is the usual port of a protocol.

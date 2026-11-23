@@ -10,6 +10,8 @@ Environment variables; every one has a default. Personal settings (connect PIN, 
 | `DB_PATH` | `$DATA_DIR/pocket-remote.db` | SQLite file |
 | `KEY_FILE` | `$DATA_DIR/remote.key` | Seals the machine passwords and keys (AES-256-GCM). Made on first start; **back it up with the database**, without it the saved passwords cannot be read |
 | `GUACD_ADDR` | `127.0.0.1:4822` | Apache Guacamole's guacd, which does the VNC, RDP and SSH work. Keep it on localhost or a private network: guacd has no sign-in of its own |
+| `AGENT_BRIDGE_LISTEN` | `127.0.0.1` | Where a session to a computer behind Pocket Remote Agent gets a one-shot port for guacd |
+| `AGENT_BRIDGE_HOST` | `127.0.0.1` | How guacd reaches that port (set to this container's name when guacd is not on the host network) |
 | `TAILSCALE_SOCKET` | `/var/run/tailscale/tailscaled.sock` | Read-only: "Add from your tailnet" (admins) and what Tailscale says about a machine. Missing = those parts are hidden |
 | `STATUS_EVERY` | `1m` | How often every machine's remote port is checked |
 | `UPLOAD_MAX_BYTES` | `4294967296` | Largest file sent to a machine (4 GB) |

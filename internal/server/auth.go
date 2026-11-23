@@ -110,7 +110,8 @@ func (s *Server) coreUser(ctx context.Context, tok string) (*store.User, error) 
 	if err != nil {
 		return nil, err
 	}
-	if !in.Active || in.User == nil || in.User.Email == "" {
+	if !in.Active || in.User == nil || in.User.Email == "" || in.Scope == "agent" {
+		// an agent's token is for /api/v1/agent/link only (agents.go)
 		return nil, http.ErrNoCookie
 	}
 	return s.coreIdentityUser(ctx, in)

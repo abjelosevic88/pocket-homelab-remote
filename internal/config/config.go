@@ -56,6 +56,11 @@ type Config struct {
 	// Tailscale, for "add from your tailnet" and who is online.
 	GuacdAddr       string
 	TailscaleSocket string
+	// AgentBridgeListen is where a session through Pocket Remote Agent gets a
+	// one-shot port for guacd to dial, and AgentBridgeHost is how guacd reaches
+	// it (both 127.0.0.1 when guacd shares the host network, as in the compose file).
+	AgentBridgeListen string
+	AgentBridgeHost   string
 	// KeyFile seals the machine passwords (made on first start; keep it with backups).
 	KeyFile string
 	// StatusEvery is how often every machine is checked for being reachable.
@@ -151,11 +156,13 @@ func Load() (*Config, error) {
 
 		UserAgent: env("USER_AGENT", "PocketRemote/1.0 (+https://github.com/abjelosevic88/pocket-homelab-remote)"),
 
-		GuacdAddr:       env("GUACD_ADDR", "127.0.0.1:4822"),
-		TailscaleSocket: env("TAILSCALE_SOCKET", "/var/run/tailscale/tailscaled.sock"),
-		KeyFile:         env("KEY_FILE", dataDir+"/remote.key"),
-		StatusEvery:     envDuration("STATUS_EVERY", time.Minute),
-		UploadMaxBytes:  envInt64("UPLOAD_MAX_BYTES", 4<<30),
+		GuacdAddr:         env("GUACD_ADDR", "127.0.0.1:4822"),
+		TailscaleSocket:   env("TAILSCALE_SOCKET", "/var/run/tailscale/tailscaled.sock"),
+		AgentBridgeListen: env("AGENT_BRIDGE_LISTEN", "127.0.0.1"),
+		AgentBridgeHost:   env("AGENT_BRIDGE_HOST", "127.0.0.1"),
+		KeyFile:           env("KEY_FILE", dataDir+"/remote.key"),
+		StatusEvery:       envDuration("STATUS_EVERY", time.Minute),
+		UploadMaxBytes:    envInt64("UPLOAD_MAX_BYTES", 4<<30),
 
 		CoreURL:             strings.TrimRight(env("CORE_URL", ""), "/"),
 		CoreRegistrationKey: env("CORE_REGISTRATION_KEY", ""),

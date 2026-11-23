@@ -371,6 +371,12 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		refuse("The saved password cannot be read: "+err.Error(), statusServerError)
 		return
 	}
+	if m.AgentID > 0 {
+		if err := s.agentBridge(ctx, m, params); err != nil {
+			refuse(err.Error(), statusUpstreamNotFound)
+			return
+		}
+	}
 	atoi := func(k string, def, lo, hi int) int {
 		n, err := strconv.Atoi(q.Get(k))
 		if err != nil || n < lo || n > hi {
@@ -568,7 +574,7 @@ func (s *Server) connectFailure(ctx context.Context, m store.Machine, err error)
 	if strings.Contains(err.Error(), "not running") {
 		return err.Error()
 	}
-	st := probeWay(ctx, m) // m is already the way in that failed
+	st := s.probeWay(ctx, m) // m is already the way in that failed
 	if st.State == "online" {
 		if m.Protocol == "rdp" && m.Kind == "mac" {
 			return "A Mac has no Remote Desktop: choose Screen Sharing (Edit → Desktop)."

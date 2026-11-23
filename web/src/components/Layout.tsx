@@ -10,6 +10,7 @@ import { CommandPalette, type PaletteCommand } from './CommandPalette'
 import { ShortcutsSheet } from './ShortcutsSheet'
 import { MachineModal, type MachineDraft } from './MachineForm'
 import { TailnetModal } from './TailnetModal'
+import { AgentModal } from './AgentModal'
 import { Avatar, type Anchor, type MenuItem, Menu, MenuButton, modalOpen, rectOf, useIsMobile, useMediaQuery } from './ui'
 import { AskButton } from './AskButton'
 
@@ -38,7 +39,7 @@ export function useCrumb(title: string | undefined) {
 const MachinesCtx = createContext<{ machines: Machine[] | null; reload: () => void }>({ machines: null, reload: () => {} })
 export const useMachines = () => useContext(MachinesCtx)
 
-export type CreateKind = 'machine' | 'tailnet'
+export type CreateKind = 'machine' | 'tailnet' | 'agent'
 
 /** Open a create action from anywhere (a page's button). */
 export const openCreate = (k: CreateKind, draft?: MachineDraft) => window.dispatchEvent(new CustomEvent('prm:create', { detail: { kind: k, draft } }))
@@ -50,6 +51,7 @@ export function createItems(onCreate: (k: CreateKind) => void, tailnet: boolean)
   return [
     { label: 'Add a computer…', icon: 'plus', hint: 'N', onSelect: () => onCreate('machine') },
     { label: 'Add from your tailnet…', icon: 'wifi', hint: 'T', disabled: !tailnet, onSelect: () => onCreate('tailnet') },
+    { label: 'A computer anywhere (agent)…', icon: 'globe', hint: 'A', onSelect: () => onCreate('agent') },
   ]
 }
 
@@ -88,7 +90,7 @@ export default function Layout() {
 
   const [palette, setPalette] = useState(false)
   const [shortcuts, setShortcuts] = useState(false)
-  const [modal, setModal] = useState<{ kind: 'machine'; machine?: Machine; draft?: MachineDraft } | { kind: 'tailnet' } | null>(null)
+  const [modal, setModal] = useState<{ kind: 'machine'; machine?: Machine; draft?: MachineDraft } | { kind: 'tailnet' } | { kind: 'agent' } | null>(null)
   const [fabMenu, setFabMenu] = useState<Anchor | null>(null)
   const tailnet = !!settings?.tailnet && user?.role === 'admin'
 
@@ -98,6 +100,7 @@ export default function Layout() {
   const create = (k: CreateKind, draft?: MachineDraft) => {
     closeDrawer()
     if (k === 'tailnet' && tailnet) setModal({ kind: 'tailnet' })
+    else if (k === 'agent') setModal({ kind: 'agent' })
     else setModal({ kind: 'machine', draft })
   }
   const createRef = useRef(create)
@@ -125,6 +128,7 @@ export default function Layout() {
         case '?': e.preventDefault(); setShortcuts(true); break
         case 'n': mk('machine'); break
         case 't': mk('tailnet'); break
+        case 'a': mk('agent'); break
         case 'h': go('/'); break
         case 's': go('/sessions'); break
         case ',': go('/settings'); break
@@ -138,6 +142,7 @@ export default function Layout() {
   const commands: PaletteCommand[] = [
     { id: 'add', label: 'Add a computer', icon: 'plus', hint: 'N', keywords: 'new machine mac pc', run: () => create('machine') },
     ...(tailnet ? [{ id: 'tailnet', label: 'Add from your tailnet', icon: 'wifi', hint: 'T', keywords: 'tailscale devices find', run: () => create('tailnet') }] : []),
+    { id: 'agent', label: 'Add a computer anywhere (Pocket Remote Agent)', icon: 'globe', hint: 'A', keywords: 'agent relay outside away work mac pair', run: () => create('agent') },
     { id: 'home', label: 'Computers', icon: 'monitor', hint: 'H', run: () => navigate('/') },
     { id: 'sessions', label: 'Sessions and files moved', icon: 'clock', hint: 'S', keywords: 'log history who when', run: () => navigate('/sessions') },
     { id: 'settings', label: 'Settings', icon: 'settings', hint: ',', run: () => navigate('/settings') },
@@ -159,12 +164,13 @@ export default function Layout() {
             <TopBar onMenu={toggleSidebar} onPalette={() => setPalette(true)} mobile={mobile} compact={narrow} sidebarOpen={sidebarOpen} crumb={crumb} />
             <main className="content"><div className="content-inner"><Outlet /></div></main>
           </div>
-          {mobile && <button type="button" className="fab" aria-label="Add a computer" title="Add a computer" aria-haspopup="menu" aria-expanded={!!fabMenu} onClick={e => tailnet ? setFabMenu(fabMenu ? null : rectOf(e.currentTarget)) : create('machine')}><Icon name="plus" size={24} strokeWidth={2.2} /></button>}
+          {mobile && <button type="button" className="fab" aria-label="Add a computer" title="Add a computer" aria-haspopup="menu" aria-expanded={!!fabMenu} onClick={e => setFabMenu(fabMenu ? null : rectOf(e.currentTarget))}><Icon name="plus" size={24} strokeWidth={2.2} /></button>}
           {fabMenu && <Menu anchor={fabMenu} align="right" items={createItems(create, tailnet)} onClose={() => setFabMenu(null)} width={250} />}
           {palette && <CommandPalette onClose={() => setPalette(false)} commands={commands} machines={machines} />}
           {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
           {modal?.kind === 'machine' && <MachineModal machine={modal.machine} draft={modal.draft} onClose={closeModal} onSaved={() => { closeModal(); load() }} />}
           {modal?.kind === 'tailnet' && <TailnetModal onClose={closeModal} onPick={d => setModal({ kind: 'machine', draft: d })} />}
+          {modal?.kind === 'agent' && <AgentModal onClose={closeModal} onDone={load} />}
         </div>
       </MachinesCtx.Provider>
     </CrumbCtx.Provider>

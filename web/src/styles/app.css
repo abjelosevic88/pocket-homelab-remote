@@ -146,3 +146,13 @@
   .page-header h1 { font-size: 19px; }
   .page-header .actions { width: 100%; }
 }
+
+/* Pocket Remote Agent: pairing dialog */
+.agent-steps { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 12px; }
+.agent-steps li { line-height: 1.45; }
+.agent-link { display: flex; gap: 8px; margin: 8px 0 4px; }
+.agent-link input { flex: 1; min-width: 0; font-size: 12px; }
+.agent-done { display: flex; gap: 12px; align-items: center; padding: 8px 0; color: var(--success); }
+.agent-done > div { color: var(--text); }
+.agent-tag { display: inline-flex; align-items: center; gap: 3px; vertical-align: -1px; }
+.agent-tag svg { display: inline-block; }
