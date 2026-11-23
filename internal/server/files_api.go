@@ -479,7 +479,7 @@ func (s *Server) filesDAV(ctx context.Context, uid int64) (*webdav.Client, strin
 	return &webdav.Client{Root: strings.TrimRight(lt.URL, "/") + "/dav", User: "pocket-remote", Password: lt.AccessToken, UserAgent: s.cfg.UserAgent}, folder, nil
 }
 
-// openAgentSFTP reaches files through Pocket Remote Agent's own SSH server
+// openAgentSFTP reaches files through Pocket Wave's own SSH server
 // (one-time password; the host key is the one the agent declared over Core's
 // pairing).
 func (s *Server) openAgentSFTP(ctx context.Context, m store.Machine) (*sftpConn, error) {
@@ -497,13 +497,13 @@ func (s *Server) openAgentSFTP(ctx context.Context, m store.Machine) (*sftpConn,
 	cc, chans, reqs, err := ssh.NewClientConn(nc, "agent", cfg)
 	if err != nil {
 		nc.Close()
-		return nil, fmt.Errorf("Pocket Remote Agent on %s: %w", m.Name, err)
+		return nil, fmt.Errorf("Pocket Wave on %s: %w", m.Name, err)
 	}
 	sc := ssh.NewClient(cc, chans, reqs)
 	fc, err := sftp.NewClient(sc)
 	if err != nil {
 		sc.Close()
-		return nil, fmt.Errorf("Pocket Remote Agent on %s did not offer files: %w", m.Name, err)
+		return nil, fmt.Errorf("Pocket Wave on %s did not offer files: %w", m.Name, err)
 	}
 	return &sftpConn{ssh: sc, sftp: fc}, nil
 }

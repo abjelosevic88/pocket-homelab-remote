@@ -51,7 +51,7 @@ export function createItems(onCreate: (k: CreateKind) => void, tailnet: boolean)
   return [
     { label: 'Add a computer…', icon: 'plus', hint: 'N', onSelect: () => onCreate('machine') },
     { label: 'Add from your tailnet…', icon: 'wifi', hint: 'T', disabled: !tailnet, onSelect: () => onCreate('tailnet') },
-    { label: 'A computer anywhere (agent)…', icon: 'globe', hint: 'A', onSelect: () => onCreate('agent') },
+    { label: 'A computer anywhere (Pocket Wave)…', icon: 'globe', hint: 'A', onSelect: () => onCreate('agent') },
   ]
 }
 
@@ -142,7 +142,7 @@ export default function Layout() {
   const commands: PaletteCommand[] = [
     { id: 'add', label: 'Add a computer', icon: 'plus', hint: 'N', keywords: 'new machine mac pc', run: () => create('machine') },
     ...(tailnet ? [{ id: 'tailnet', label: 'Add from your tailnet', icon: 'wifi', hint: 'T', keywords: 'tailscale devices find', run: () => create('tailnet') }] : []),
-    { id: 'agent', label: 'Add a computer anywhere (Pocket Remote Agent)', icon: 'globe', hint: 'A', keywords: 'agent relay outside away work mac pair', run: () => create('agent') },
+    { id: 'agent', label: 'Add a computer anywhere (Pocket Wave)', icon: 'globe', hint: 'A', keywords: 'agent relay outside away work mac pair', run: () => create('agent') },
     { id: 'home', label: 'Computers', icon: 'monitor', hint: 'H', run: () => navigate('/') },
     { id: 'sessions', label: 'Sessions and files moved', icon: 'clock', hint: 'S', keywords: 'log history who when', run: () => navigate('/sessions') },
     { id: 'settings', label: 'Settings', icon: 'settings', hint: ',', run: () => navigate('/settings') },

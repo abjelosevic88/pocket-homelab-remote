@@ -20,9 +20,9 @@ import (
 	"github.com/abjelosevic88/pocket-homelab-remote/internal/store"
 )
 
-// ---- Pocket Remote Agent ----
+// ---- Pocket Wave ----
 //
-// A computer outside the tailnet runs Pocket Remote Agent, which connects out
+// A computer outside the tailnet runs Pocket Wave, which connects out
 // through Pocket Core's relay (an agent pairing: its key reaches only
 // /api/v1/agent/…) and opens GET /api/v1/agent/link here. Everything for that
 // computer then goes over the link: the terminal and files through the
@@ -51,7 +51,7 @@ func (s *Server) agentConnFor(id int64) *agentConn {
 func (s *Server) agentOf(m store.Machine) (*agentConn, error) {
 	ac := s.agentConnFor(m.AgentID)
 	if ac == nil || ac.uid != m.UserID {
-		return nil, fmt.Errorf("Pocket Remote Agent on %s is not connected (is the computer on and awake?)", m.Name)
+		return nil, fmt.Errorf("Pocket Wave on %s is not connected (is the computer on and awake?)", m.Name)
 	}
 	return ac, nil
 }
@@ -253,7 +253,7 @@ func (s *Server) agentOpen(ctx context.Context, m store.Machine, req agentlink.O
 		if errors.As(err, &re) && re.Reason == "refused" {
 			return nil, fmt.Errorf("%s is switched off on %s", protocolName(m.Protocol), m.Name)
 		}
-		return nil, fmt.Errorf("Pocket Remote Agent on %s: %w", m.Name, err)
+		return nil, fmt.Errorf("Pocket Wave on %s: %w", m.Name, err)
 	}
 	return st, nil
 }
@@ -319,7 +319,7 @@ func (s *Server) agentBridge(ctx context.Context, m store.Machine, params map[st
 func (s *Server) agentProbe(ctx context.Context, m store.Machine) wayStatus {
 	ac, err := s.agentOf(m)
 	if err != nil {
-		return wayStatus{State: "offline", Detail: "Pocket Remote Agent is not connected"}
+		return wayStatus{State: "offline", Detail: "Pocket Wave is not connected"}
 	}
 	rtt := int(max(ac.rttMS.Load(), 1))
 	if m.Protocol == "ssh" {
@@ -375,7 +375,7 @@ func (s *Server) handleAgentPairLink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := userFrom(ctx)
 	if !s.core.Configured() || s.core.Token() == "" {
-		writeJSON(w, http.StatusConflict, map[string]string{"code": "no_core", "error": "Pocket Remote Agent connects through Pocket Core's remote access; connect Pocket Remote to Pocket Core first."})
+		writeJSON(w, http.StatusConflict, map[string]string{"code": "no_core", "error": "Pocket Wave connects through Pocket Core's remote access; connect Pocket Remote to Pocket Core first."})
 		return
 	}
 	body, _ := json.Marshal(map[string]string{"email": u.Email})

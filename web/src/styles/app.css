@@ -147,7 +147,7 @@
   .page-header .actions { width: 100%; }
 }
 
-/* Pocket Remote Agent: pairing dialog */
+/* Pocket Wave: pairing dialog */
 .agent-steps { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 12px; }
 .agent-steps li { line-height: 1.45; }
 .agent-link { display: flex; gap: 8px; margin: 8px 0 4px; }

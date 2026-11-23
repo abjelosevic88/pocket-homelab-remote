@@ -38,7 +38,7 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(x => ({ ...x, [k]: v }))
   const setKind = (k: Kind) => setF(x => machine ? { ...x, kind: k } : ({ ...x, kind: k, protocol: DEFAULT_PROTOCOL[k], files_enabled: k !== 'windows', desktop: k !== 'linux', terminal: k === 'mac' || k === 'linux' }))
   const p = f.protocol
-  // A computer reached through Pocket Remote Agent: no address, SSH or wake of its own;
+  // A computer reached through Pocket Wave: no address, SSH or wake of its own;
   // its terminal and files need no sign-in, only Screen Sharing does.
   const agent = !!machine?.agent_id
   const signIn = !agent || f.desktop
@@ -70,10 +70,10 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
         <Field group label="What is it">
           <Segmented value={f.kind} onChange={setKind} options={(['mac', 'windows', 'linux', 'other'] as Kind[]).map(k => ({ value: k, label: KIND_NAME[k] }))} />
         </Field>
-        <p className="mf-how muted small"><Icon name="info" size={13} /><span>{agent ? <>Reached through <b>Pocket Remote Agent</b>: the terminal and files need nothing else on it. For the desktop, switch on <b>Screen Sharing</b> in its Sharing settings.</> : HOW[f.kind]}</span></p>
+        <p className="mf-how muted small"><Icon name="info" size={13} /><span>{agent ? <>Reached through <b>Pocket Wave</b>: the terminal and files need nothing else on it. For the desktop, switch on <b>Screen Sharing</b> in its Sharing settings.</> : HOW[f.kind]}</span></p>
         <div className="two-col tight">
           <Field label="Name"><input value={f.name} onChange={e => set('name', e.target.value)} placeholder={f.kind === 'mac' ? 'MacBook Pro' : f.kind === 'windows' ? 'Gaming PC' : 'Home server'} required maxLength={80} autoFocus={!machine} /></Field>
-          {agent ? <Field label="Reached through" help={machine?.agent?.connected ? `Connected${machine.agent.login ? ` as ${machine.agent.login}` : ''}${machine.agent.version ? ` · agent ${machine.agent.version}` : ''}` : 'Not connected now'}><input value="Pocket Remote Agent" readOnly /></Field>
+          {agent ? <Field label="Reached through" help={machine?.agent?.connected ? `Connected${machine.agent.login ? ` as ${machine.agent.login}` : ''}${machine.agent.version ? ` · Pocket Wave ${machine.agent.version}` : ''}` : 'Not connected now'}><input value="Pocket Wave" readOnly /></Field>
             : <Field label="Address" help="Its tailnet name (macbook-pro) or an IP address."><input value={f.host} onChange={e => set('host', e.target.value)} placeholder="macbook-pro" required autoCapitalize="off" autoCorrect="off" spellCheck={false} /></Field>}
         </div>
         <h4 className="mf-h"><Icon name="log-in" size={14} />Ways in</h4>

@@ -56,7 +56,7 @@ type Config struct {
 	// Tailscale, for "add from your tailnet" and who is online.
 	GuacdAddr       string
 	TailscaleSocket string
-	// AgentBridgeListen is where a session through Pocket Remote Agent gets a
+	// AgentBridgeListen is where a session through Pocket Wave gets a
 	// one-shot port for guacd to dial, and AgentBridgeHost is how guacd reaches
 	// it (both 127.0.0.1 when guacd shares the host network, as in the compose file).
 	AgentBridgeListen string

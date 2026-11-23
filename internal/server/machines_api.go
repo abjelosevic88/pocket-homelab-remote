@@ -202,7 +202,7 @@ type machineView struct {
 	Available   []string        `json:"available_ways"` // the ways in to offer now
 	Tailnet     *tailnet.Device `json:"tailnet,omitempty"`
 	Live        int             `json:"live"`            // sessions open right now
-	Agent       *agentView      `json:"agent,omitempty"` // Pocket Remote Agent, for a computer reached through one
+	Agent       *agentView      `json:"agent,omitempty"` // Pocket Wave, for a computer reached through one
 }
 
 func (s *Server) view(m store.Machine, devs []tailnet.Device) machineView {

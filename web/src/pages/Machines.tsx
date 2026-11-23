@@ -30,7 +30,7 @@ export default function Machines() {
         </div>
         <div className="row">
           {tailnet && <button type="button" className="btn" onClick={() => openCreate('tailnet')}><Icon name="wifi" size={15} />From your tailnet</button>}
-          <button type="button" className="btn" onClick={() => openCreate('agent')} title="A Mac outside your tailnet, through Pocket Remote Agent"><Icon name="globe" size={15} />Anywhere</button>
+          <button type="button" className="btn" onClick={() => openCreate('agent')} title="A Mac outside your tailnet, through Pocket Wave"><Icon name="globe" size={15} />Anywhere</button>
           <button type="button" className="btn primary" onClick={() => openCreate('machine')}><Icon name="plus" size={15} />Add a computer</button>
         </div>
       </div>
@@ -74,7 +74,7 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
         <span className={`mc-ico k-${m.kind}`}><Icon name={kindIcon(m.kind)} size={22} /></span>
         <div className="grow mc-title">
           <h3 className="ellipsis">{m.name}{m.favorite && <Icon name="star" size={13} className="mc-fav" />}</h3>
-          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.agent_id ? <span className="agent-tag" title="Reached through Pocket Remote Agent, via Pocket Core's relay"><Icon name="globe" size={11} />agent</span> : m.host}</div>
+          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.agent_id ? <span className="agent-tag" title="Reached through Pocket Wave, via Pocket Core's relay"><Icon name="globe" size={11} />Wave</span> : m.host}</div>
         </div>
         <MenuButton label={`More for ${m.name}`} align="right" items={[
           { label: 'Edit', icon: 'edit', onSelect: () => openEdit(m) },

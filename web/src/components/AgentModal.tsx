@@ -1,4 +1,4 @@
-// "A computer anywhere": pair Pocket Remote Agent, which connects out through Pocket Core's relay.
+// "A computer anywhere": pair Pocket Wave, which connects out through Pocket Core's relay.
 import { useEffect, useRef, useState } from 'react'
 import { api, V1 } from '../lib/api'
 import type { Machine } from '../lib/types'
@@ -52,10 +52,10 @@ export function AgentModal({ onClose, onDone }: { onClose: () => void; onDone: (
           <div><b>{arrived.name} is here.</b><div className="muted small">Open its terminal or files from the list.</div></div>
         </div>
       ) : <>
-        <p className="muted small mb">For a Mac outside your tailnet. Pocket Remote Agent connects out through Pocket Core's relay: no VPN, nothing opened on the Mac.</p>
+        <p className="muted small mb">For a Mac outside your tailnet. Pocket Wave connects out through Pocket Core's relay: no VPN, nothing opened on the Mac.</p>
         <ol className="agent-steps">
-          <li><b>Install Pocket Remote Agent</b> on the Mac <span className="muted">(Pocket Files → Pocket Apps)</span>.</li>
-          <li><b>Copy this link</b> and paste it into the agent's <b>Pair</b> window.
+          <li><b>Install Pocket Wave</b> on the Mac <span className="muted">(Pocket Files → Pocket Apps)</span>.</li>
+          <li><b>Copy this link</b> and paste it into Pocket Wave's <b>Pair</b> window.
             {err && <div className="callout danger mt-sm"><Icon name="alert" size={15} /><span>{err}</span></div>}
             {link && <div className="agent-link">
               <input readOnly value={link.url} className="mono" onFocus={e => e.currentTarget.select()} aria-label="Pairing link" />

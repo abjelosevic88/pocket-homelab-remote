@@ -50,7 +50,7 @@ type Machine struct {
 	Favorite        bool            `json:"favorite"`
 	Sort            int             `json:"sort"`
 	TailnetID       string          `json:"tailnet_id"`
-	// AgentID is set for a computer reached through Pocket Remote Agent
+	// AgentID is set for a computer reached through Pocket Wave
 	// (agents.go): no address of its own, everything goes through the agent.
 	AgentID      int64  `json:"agent_id"`
 	LastUsedAt   string `json:"last_used_at"`

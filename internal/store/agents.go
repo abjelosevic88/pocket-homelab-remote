@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-// Agent is a paired Pocket Remote Agent (one per Core remote device).
+// Agent is a paired Pocket Wave (one per Core remote device).
 type Agent struct {
 	ID           int64  `json:"id"`
 	UserID       int64  `json:"-"`

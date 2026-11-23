@@ -49,7 +49,7 @@ func (s *Server) Router() http.Handler {
 		// the session tunnel: its one-time ticket is the credential (the app's
 		// web view has no cookie); a signed-in caller must be the ticket's person
 		r.Get("/tunnel", s.handleTunnel)
-		// Pocket Remote Agent, through Pocket Core's relay: Core's agent token is the credential
+		// Pocket Wave, through Pocket Core's relay: Core's agent token is the credential
 		r.Get("/agent/link", s.handleAgentLink)
 
 		r.Group(func(r chi.Router) {

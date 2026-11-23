@@ -1,10 +1,10 @@
-// Package agentlink is the wire between Pocket Remote and Pocket Remote Agent:
+// Package agentlink is the wire between Pocket Remote and Pocket Wave:
 // many byte streams (a terminal, a file browser, a desktop) over one
 // message connection, with flow control so a fast sender never floods the
 // relay in between.
 //
 // The same file lives in both repositories (pocket-homelab-remote
-// internal/agentlink and pocket-homelab-remote-agent internal/agentlink);
+// internal/agentlink and pocket-homelab-wave internal/agentlink);
 // keep them equal.
 //
 // Every message is one frame: type u8 | stream u32 BE | payload.
