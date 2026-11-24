@@ -1,4 +1,4 @@
-// A computer's files over SFTP: browse, download here, upload from here, save to Pocket Files.
+// A computer's files over SFTP: browse, download here, upload from here (button or drag and drop), save to Pocket Files.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
@@ -20,6 +20,11 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
   const [hidden, setHidden] = useState(false)
   const [up, setUp] = useState<{ name: string; pct: number } | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  // drag and drop: '' = over the folder shown, a path = over that folder's row
+  const [drop, setDrop] = useState<string | null>(null)
+  const depth = useRef(0)
+  const pathRef = useRef(path)
+  pathRef.current = list?.path ?? path
   const filesOK = !!settings?.files_via
   const coreOn = !!settings?.core_configured && settings?.core_registered !== false
 
@@ -42,16 +47,18 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
       toast(r.ok ? r.message! : r.error!, r.ok ? 'ok' : 'err')
     } catch (e) { toast((e as Error).message, 'err') }
   }
-  const upload = (files: FileList | null) => {
+  const upload = (files: FileList | File[] | null, to?: string) => {
     if (!files || !files.length || !list) return
+    if (up) { toast('Wait for the files being sent to finish', 'err'); return }
+    const dest = to || list.path
     const queue = Array.from(files)
     const next = () => {
       const file = queue.shift()
-      if (!file) { setUp(null); load(list.path); return }
+      if (!file) { setUp(null); load(pathRef.current); return }
       const fd = new FormData()
       fd.append('file', file)
       const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${V1}/machines/${machine.id}/files/upload?path=${enc(list.path)}`)
+      xhr.open('POST', `${V1}/machines/${machine.id}/files/upload?path=${enc(dest)}`)
       xhr.upload.onprogress = e => { if (e.lengthComputable) setUp({ name: file.name, pct: Math.round(e.loaded / e.total * 100) }) }
       xhr.onload = () => {
         if (xhr.status >= 300) { let m = xhr.statusText; try { m = JSON.parse(xhr.responseText).error || m } catch { /* plain text */ } toast(`${file.name}: ${m}`, 'err') } else toast(`${file.name} sent`)
@@ -64,10 +71,36 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
     next()
   }
 
+  // files dragged from the desktop; folders are skipped (only files go over SFTP here)
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
+  const onDragEnter = (e: React.DragEvent) => { if (!hasFiles(e) || !list) return; e.preventDefault(); depth.current++; if (drop === null) setDrop('') }
+  const onDragLeave = (e: React.DragEvent) => { if (!hasFiles(e)) return; if (--depth.current <= 0) { depth.current = 0; setDrop(null) } }
+  const onDragOver = (to: string) => (e: React.DragEvent) => {
+    if (!hasFiles(e) || !list) return
+    e.preventDefault(); e.stopPropagation()
+    e.dataTransfer.dropEffect = up ? 'none' : 'copy'
+    if (drop !== to) setDrop(to)
+  }
+  const onDrop = (to: string) => (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
+    e.preventDefault(); e.stopPropagation()
+    depth.current = 0; setDrop(null)
+    const items = Array.from(e.dataTransfer.items || [])
+    const files: File[] = []
+    let folders = 0
+    Array.from(e.dataTransfer.files).forEach((f, i) => {
+      const entry = items[i]?.webkitGetAsEntry?.()
+      if (entry?.isDirectory) folders++; else files.push(f)
+    })
+    if (folders) toast(folders === 1 ? 'Folders cannot be sent: send the files inside it' : `${folders} folders skipped: send the files inside them`, 'err')
+    upload(files, to || undefined)
+  }
+  const dropName = drop ? drop.split('/').filter(Boolean).pop() : ''
+
   const crumbs = list ? list.path.split('/').filter(Boolean) : []
   const entries = (list?.entries || []).filter(e => hidden || !e.hidden)
   return (
-    <div className={`fb ${compact ? 'compact' : ''}`}>
+    <div className={`fb ${compact ? 'compact' : ''} ${drop !== null ? 'dragging' : ''}`} onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver('')} onDrop={onDrop('')}>
       <div className="fb-bar">
         <button type="button" className="btn ghost icon-only sm" title="Up a folder" aria-label="Up a folder" disabled={!list?.parent || loading} onClick={() => list && load(list.parent)}><Icon name="arrow-up" size={15} /></button>
         <button type="button" className="btn ghost icon-only sm" title="Home folder" aria-label="Home folder" disabled={loading} onClick={() => load(list?.home || '')}><Icon name="home" size={15} /></button>
@@ -82,10 +115,11 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
       {up && <div className="fb-progress"><span className="ellipsis grow">Sending {up.name}</span><span className="tnum">{up.pct}%</span><div className="fb-pbar"><span style={{ width: `${up.pct}%` }} /></div></div>}
       {err && <div className={`callout ${err.hostKey ? 'danger' : 'warn'} mb`}><Icon name="alert" size={15} /><div>{err.msg}{err.hostKey && <div className="mt"><button type="button" className="btn sm" onClick={trust}>Trust it again</button></div>}</div></div>}
       {!list && !err && <Loading />}
-      {list && <div className="fb-list" aria-busy={loading}>
+      {list && <div className={`fb-list ${drop === '' ? 'drop' : ''}`} aria-busy={loading}>
+        {drop !== null && <div className="fb-drophint"><Icon name="upload" size={15} />{up ? 'Wait for the files being sent to finish' : `Drop to send to ${dropName || list.path.split('/').filter(Boolean).pop() || '/'}`}</div>}
         {entries.length === 0 && <p className="muted fb-empty">This folder is empty.</p>}
         {entries.map(f => (
-          <div key={f.path} className={`fb-row ${f.dir ? 'dir' : ''}`}>
+          <div key={f.path} className={`fb-row ${f.dir ? 'dir' : ''} ${f.dir && drop === f.path ? 'drop' : ''}`} {...(f.dir ? { onDragOver: onDragOver(f.path), onDrop: onDrop(f.path) } : {})}>
             {f.dir
               ? <button type="button" className="fb-name" onClick={() => load(f.path)}><Icon name="folder" size={16} className="fb-ico" /><span className="ellipsis">{f.name}</span></button>
               : <a className="fb-name" href={`${V1}/machines/${machine.id}/files/download?path=${enc(f.path)}`}><Icon name="file" size={16} className="fb-ico" /><span className="ellipsis">{f.name}</span></a>}
