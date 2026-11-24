@@ -41,7 +41,7 @@ export interface Machine {
   created_at: string; updated_at: string
   has_password: boolean; has_key: boolean; status: MachineStatus; tailnet?: TailnetDevice; live: number
   /** Set for a computer reached through Pocket Wave. */
-  agent_id: number; agent?: { connected: boolean; since?: string; login?: string; os?: string; version?: string }
+  agent_id: number; via_id: number; via_name?: string; agent?: { connected: boolean; since?: string; login?: string; os?: string; version?: string }
 }
 
 export interface RemoteSession {

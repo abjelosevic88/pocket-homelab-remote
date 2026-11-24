@@ -52,7 +52,10 @@ type Machine struct {
 	TailnetID       string          `json:"tailnet_id"`
 	// AgentID is set for a computer reached through Pocket Wave
 	// (agents.go): no address of its own, everything goes through the agent.
-	AgentID      int64  `json:"agent_id"`
+	AgentID int64 `json:"agent_id"`
+	// ViaID is set for a computer reached through another one's SSH (a jump
+	// host, via.go): that computer's id, 0 = reached directly.
+	ViaID        int64  `json:"via_id"`
 	LastUsedAt   string `json:"last_used_at"`
 	LastOnlineAt string `json:"last_online_at"`
 	CreatedAt    string `json:"created_at"`

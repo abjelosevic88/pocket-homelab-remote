@@ -74,7 +74,7 @@ function MachineCard({ m, onChanged, onDelete }: { m: Machine; onChanged: () => 
         <span className={`mc-ico k-${m.kind}`}><Icon name={kindIcon(m.kind)} size={22} /></span>
         <div className="grow mc-title">
           <h3 className="ellipsis">{m.name}{m.favorite && <Icon name="star" size={13} className="mc-fav" />}</h3>
-          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.agent_id ? <span className="agent-tag" title="Reached through Pocket Wave, via Pocket Core's relay"><Icon name="globe" size={11} />Wave</span> : m.host}</div>
+          <div className="muted small ellipsis">{KIND_NAME[m.kind]} · {[m.desktop_enabled && PROTOCOL_NAME[m.protocol], m.terminal_enabled && 'Terminal'].filter(Boolean).join(' + ')} · {m.agent_id ? <span className="agent-tag" title="Reached through Pocket Wave, via Pocket Core's relay"><Icon name="globe" size={11} />Wave</span> : <>{m.host}{m.via_name && <span title={`Reached through ${m.via_name}`}> · via {m.via_name}</span>}</>}</div>
         </div>
         <MenuButton label={`More for ${m.name}`} align="right" items={[
           { label: 'Edit', icon: 'edit', onSelect: () => openEdit(m) },

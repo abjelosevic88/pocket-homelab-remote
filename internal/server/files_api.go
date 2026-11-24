@@ -35,6 +35,7 @@ var errHostKeyChanged = errors.New("this machine's identity changed since Pocket
 type sftpConn struct {
 	ssh  *ssh.Client
 	sftp *sftp.Client
+	done func() // lets go of the computer it was reached through
 }
 
 func (c *sftpConn) Close() {
@@ -43,6 +44,9 @@ func (c *sftpConn) Close() {
 	}
 	if c.ssh != nil {
 		c.ssh.Close()
+	}
+	if c.done != nil {
+		c.done()
 	}
 }
 
@@ -57,13 +61,31 @@ func (s *Server) openSFTP(ctx context.Context, uid int64, m store.Machine) (*sft
 	if m.AgentID > 0 {
 		return s.openAgentSFTP(ctx, m)
 	}
-	pass, err := s.seal.Open(m.Secret)
+	sc, done, err := s.sshClient(ctx, uid, m, "for files")
 	if err != nil {
 		return nil, err
 	}
+	fc, err := sftp.NewClient(sc)
+	if err != nil {
+		sc.Close()
+		done()
+		return nil, fmt.Errorf("the machine does not offer files over SFTP: %w", err)
+	}
+	return &sftpConn{ssh: sc, sftp: fc, done: done}, nil
+}
+
+// sshClient signs in to a machine over SSH with its saved sign-in, straight
+// or through the computer it is reached through (via.go). done lets go of
+// that computer once the client is closed. why ("for files") goes into the
+// "cannot reach" message.
+func (s *Server) sshClient(ctx context.Context, uid int64, m store.Machine, why string) (*ssh.Client, func(), error) {
+	pass, err := s.seal.Open(m.Secret)
+	if err != nil {
+		return nil, nil, err
+	}
 	keyText, err := s.seal.Open(m.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var auth []ssh.AuthMethod
 	if keyText != "" {
@@ -74,7 +96,7 @@ func (s *Server) openSFTP(ctx context.Context, uid int64, m store.Machine) (*sft
 				signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(keyText), []byte(pass))
 			}
 			if err != nil {
-				return nil, fmt.Errorf("the saved private key cannot be used: %w", err)
+				return nil, nil, fmt.Errorf("%s: the saved private key cannot be used: %w", m.Name, err)
 			}
 		}
 		auth = append(auth, ssh.PublicKeys(signer))
@@ -89,10 +111,10 @@ func (s *Server) openSFTP(ctx context.Context, uid int64, m store.Machine) (*sft
 		}))
 	}
 	if len(auth) == 0 {
-		return nil, errors.New("add the machine's password or a private key (Edit → Sign-in) to reach its files")
+		return nil, nil, fmt.Errorf("add %s's password or a private key (Edit → Sign-in) to reach it %s", m.Name, why)
 	}
 	if m.Username == "" {
-		return nil, errors.New("add the user name you sign in to this machine with (Edit → Sign-in)")
+		return nil, nil, fmt.Errorf("add the user name you sign in to %s with (Edit → Sign-in)", m.Name)
 	}
 	learned := ""
 	hostKey := func(_ string, _ net.Addr, key ssh.PublicKey) error {
@@ -108,32 +130,34 @@ func (s *Server) openSFTP(ctx context.Context, uid int64, m store.Machine) (*sft
 	}
 	cfg := &ssh.ClientConfig{User: m.Username, Auth: auth, HostKeyCallback: hostKey, Timeout: 8 * time.Second}
 	addr := net.JoinHostPort(m.Host, strconv.Itoa(m.SSHPort))
-	d := net.Dialer{Timeout: 8 * time.Second}
-	nc, err := d.DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("cannot reach %s for files (is Remote Login / SSH on?): %w", m.Name, err)
+	var nc net.Conn
+	done := func() {}
+	if m.ViaID > 0 {
+		if nc, done, err = s.dialThrough(ctx, m, m.SSHPort); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		d := net.Dialer{Timeout: 8 * time.Second}
+		if nc, err = d.DialContext(ctx, "tcp", addr); err != nil {
+			return nil, nil, fmt.Errorf("cannot reach %s %s (is Remote Login / SSH on?): %w", m.Name, why, err)
+		}
 	}
 	cc, chans, reqs, err := ssh.NewClientConn(nc, addr, cfg)
 	if err != nil {
 		nc.Close()
+		done()
 		if errors.Is(err, errHostKeyChanged) || strings.Contains(err.Error(), errHostKeyChanged.Error()) {
-			return nil, errHostKeyChanged
+			return nil, nil, errHostKeyChanged
 		}
 		if strings.Contains(err.Error(), "unable to authenticate") {
-			return nil, errors.New("the machine did not accept the saved user name and password (or key)")
+			return nil, nil, fmt.Errorf("%s did not accept the saved user name and password (or key)", m.Name)
 		}
-		return nil, err
-	}
-	sc := ssh.NewClient(cc, chans, reqs)
-	fc, err := sftp.NewClient(sc)
-	if err != nil {
-		sc.Close()
-		return nil, fmt.Errorf("the machine does not offer files over SFTP: %w", err)
+		return nil, nil, err
 	}
 	if learned != "" {
 		_ = s.store.SetHostKey(context.WithoutCancel(ctx), uid, m.ID, learned)
 	}
-	return &sftpConn{ssh: sc, sftp: fc}, nil
+	return ssh.NewClient(cc, chans, reqs), done, nil
 }
 
 type fileEntry struct {

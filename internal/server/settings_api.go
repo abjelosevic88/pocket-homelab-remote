@@ -418,6 +418,17 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 		byKey[key(nm.Name, nm.Host)] = nm.ID
 		counts["machines"]++
 	}
+	// the computers reached through another one, once both are here
+	for _, m := range doc.Machines {
+		nid, ok1 := ids[m.ID]
+		vid, ok2 := ids[m.ViaID]
+		if m.ViaID == 0 || !ok1 || !ok2 {
+			continue
+		}
+		if nm, err := s.store.GetMachine(ctx, uid, nid); err == nil && nm.ViaID == 0 && s.setVia(ctx, uid, &nm, vid) == "" {
+			_ = s.store.UpdateMachine(ctx, uid, &nm)
+		}
+	}
 	seen := map[string]bool{}
 	cur, _, _ := s.store.ListSessions(ctx, uid, store.SessionFilter{Limit: 1000})
 	for _, x := range cur {

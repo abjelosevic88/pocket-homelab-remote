@@ -1,5 +1,5 @@
 // Add or edit a computer: what it is, how to reach it, how to sign in, waking it, files and display.
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { api, V1 } from '../lib/api'
 import { DEFAULT_PORT, DEFAULT_PROTOCOL, KIND_NAME, PROTOCOL_NAME, PROTOCOL_TECH } from '../lib/remote'
 import type { Kind, Machine, MachineOptions, Protocol } from '../lib/types'
@@ -28,6 +28,7 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
     port: machine?.port ? String(machine.port) : '', username: machine?.username || '', password: '', private_key: '', domain: machine?.domain || '',
     mac_address: machine?.mac_address || '', wol_broadcast: machine?.wol_broadcast || '', files_enabled: machine ? machine.files_enabled : kind0 !== 'windows',
     ssh_port: String(machine?.ssh_port || 22), notes: machine?.notes || '', favorite: machine?.favorite || false, tailnet_id: start.tailnet_id || '',
+    via_id: String(machine?.via_id || 0),
   })
   const [opt, setOpt] = useState<MachineOptions>(machine?.options || (kind0 === 'windows' ? { ignore_cert: true, resize: true } : {}))
   const [clearPw, setClearPw] = useState(false)
@@ -42,6 +43,12 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
   // its terminal and files need no sign-in, only Screen Sharing does.
   const agent = !!machine?.agent_id
   const signIn = !agent || f.desktop
+  // the computers this one can be reached through: yours, reached directly, not this one
+  const [vias, setVias] = useState<Machine[]>([])
+  useEffect(() => {
+    if (agent) return
+    api.get<Machine[]>(`${V1}/machines`).then(ms => setVias(ms.filter(x => x.id !== machine?.id && !x.via_id && !x.agent_id && !x.host.endsWith('.demo')))).catch(() => {})
+  }, [agent, machine?.id])
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,6 +59,7 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
       mac_address: f.mac_address, wol_broadcast: f.wol_broadcast, files_enabled: f.files_enabled, ssh_port: Number(f.ssh_port) || 22,
       notes: f.notes, favorite: f.favorite, options: opt, tailnet_id: f.tailnet_id,
     }
+    if (!agent) body.via_id = Number(f.via_id) || 0
     if (f.password) body.password = f.password
     if (f.private_key) body.private_key = f.private_key
     if (clearPw) body.clear_password = true
@@ -76,6 +84,9 @@ export function MachineModal({ machine, draft, onClose, onSaved }: { machine?: M
           {agent ? <Field label="Reached through" help={machine?.agent?.connected ? `Connected${machine.agent.login ? ` as ${machine.agent.login}` : ''}${machine.agent.version ? ` · Pocket Wave ${machine.agent.version}` : ''}` : 'Not connected now'}><input value="Pocket Wave" readOnly /></Field>
             : <Field label="Address" help="Its tailnet name (macbook-pro) or an IP address."><input value={f.host} onChange={e => set('host', e.target.value)} placeholder="macbook-pro" required autoCapitalize="off" autoCorrect="off" spellCheck={false} /></Field>}
         </div>
+        {!agent && (vias.length > 0 || f.via_id !== '0') && <Field group label="Reach it through" help={f.via_id !== '0' ? `Pocket Remote signs in to ${vias.find(v => String(v.id) === f.via_id)?.name || 'that computer'} first and opens this one's address from there, like ssh -J (or tailscale nc on it). Use the address as that computer sees it.` : 'For a computer only another one of yours can reach: a VM on a work tailnet, a machine behind a bastion.'}>
+          <Select ariaLabel="Reach it through" value={f.via_id} onChange={v => set('via_id', v)} options={[{ value: '0', label: 'Directly' }, ...vias.map(v => ({ value: String(v.id), label: v.name }))]} />
+        </Field>}
         <h4 className="mf-h"><Icon name="log-in" size={14} />Ways in</h4>
         <div className="mf-ways">
           <div className={`mf-way ${f.desktop ? 'on' : ''}`}>

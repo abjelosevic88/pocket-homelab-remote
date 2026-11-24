@@ -61,6 +61,7 @@ type machineInput struct {
 	Favorite      bool            `json:"favorite"`
 	Sort          int             `json:"sort"`
 	TailnetID     string          `json:"tailnet_id"`
+	ViaID         int64           `json:"via_id"`
 }
 
 // apply copies the sent fields onto m and checks them ("" = fine).
@@ -183,6 +184,38 @@ func (in machineInput) apply(m *store.Machine, keys map[string]bool) string {
 	return ""
 }
 
+// setVia sets the computer m is reached through (0 = directly) after
+// checking it can be one: the person's own, not m, reached directly itself,
+// and m not already passing connections on for others (no chains).
+func (s *Server) setVia(ctx context.Context, uid int64, m *store.Machine, viaID int64) string {
+	if viaID <= 0 {
+		m.ViaID = 0
+		return ""
+	}
+	if viaID == m.ID {
+		return "a computer cannot be reached through itself"
+	}
+	via, err := s.store.GetMachine(ctx, uid, viaID)
+	if err != nil {
+		return "the computer to reach it through is not one of yours"
+	}
+	if via.ViaID > 0 || via.AgentID > 0 {
+		return via.Name + " is reached through something else itself, so it cannot pass connections on"
+	}
+	if m.ID > 0 {
+		ms, err := s.store.ListMachines(ctx, uid)
+		if err == nil {
+			for _, o := range ms {
+				if o.ViaID == m.ID {
+					return o.Name + " is reached through " + m.Name + ", so " + m.Name + " has to be reached directly"
+				}
+			}
+		}
+	}
+	m.ViaID = viaID
+	return ""
+}
+
 // defaultProtocol is the usual desktop protocol of a kind of computer.
 func defaultProtocol(kind string) string {
 	switch kind {
@@ -203,13 +236,19 @@ type machineView struct {
 	Tailnet     *tailnet.Device `json:"tailnet,omitempty"`
 	Live        int             `json:"live"`            // sessions open right now
 	Agent       *agentView      `json:"agent,omitempty"` // Pocket Wave, for a computer reached through one
+	ViaName     string          `json:"via_name,omitempty"`
 }
 
 func (s *Server) view(m store.Machine, devs []tailnet.Device) machineView {
 	v := machineView{Machine: m, Port: m.EffectivePort(), HasPassword: m.Secret != "", HasKey: m.PrivateKey != "", Status: s.statusOf(m.ID)}
 	v.Available = v.Status.available(m)
 	v.Agent = s.agentViewOf(m)
-	if d, ok := tailnet.Match(devs, m.Host); ok && m.AgentID == 0 {
+	if m.ViaID > 0 {
+		if via, err := s.store.GetMachine(context.Background(), m.UserID, m.ViaID); err == nil {
+			v.ViaName = via.Name
+		}
+	}
+	if d, ok := tailnet.Match(devs, m.Host); ok && m.AgentID == 0 && m.ViaID == 0 {
 		v.Tailnet = &d
 	}
 	v.Live = s.liveCount(m.UserID, m.ID)
@@ -314,6 +353,12 @@ func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid := actorID(ctx)
+	if keys["via_id"] {
+		if msg := s.setVia(ctx, uid, &m, in.ViaID); msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
+	}
 	if err := s.store.CreateMachine(ctx, uid, &m); err != nil {
 		s.fail(w, err, "add machine")
 		return
@@ -350,6 +395,12 @@ func (s *Server) handleUpdateMachine(w http.ResponseWriter, r *http.Request) {
 	if err := s.sealSecrets(&m, in, keys); err != nil {
 		s.fail(w, err, "seal")
 		return
+	}
+	if keys["via_id"] && m.AgentID == 0 {
+		if msg := s.setVia(ctx, uid, &m, in.ViaID); msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
 	}
 	if !strings.EqualFold(host, m.Host) || sshPort != m.SSHPort {
 		m.HostKey = "" // another machine: learn its identity again
@@ -487,6 +538,9 @@ func (s *Server) probeWay(ctx context.Context, m store.Machine) wayStatus {
 	if m.AgentID > 0 {
 		return s.agentProbe(ctx, m)
 	}
+	if m.ViaID > 0 {
+		return s.viaProbe(ctx, m)
+	}
 	if isDemoHost(m.Host) {
 		if m.Favorite || m.Kind == "linux" {
 			return wayStatus{State: "online", LatencyMS: 8 + int(m.ID*7%30)}
@@ -528,7 +582,11 @@ func protocolName(p string) string {
 
 // checkOne checks one machine and remembers the result.
 func (s *Server) checkOne(ctx context.Context, m store.Machine) machineStatus {
-	c, cancel := context.WithTimeout(ctx, 5*time.Second)
+	limit := 5 * time.Second
+	if m.ViaID > 0 {
+		limit = 15 * time.Second // a sign-in to the computer in between first
+	}
+	c, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	st := s.probe(c, m)
 	s.statusMu.Lock()

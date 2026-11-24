@@ -377,6 +377,12 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if m.ViaID > 0 {
+		if err := s.viaBridge(ctx, m, params); err != nil {
+			refuse(err.Error(), statusUpstreamNotFound)
+			return
+		}
+	}
 	atoi := func(k string, def, lo, hi int) int {
 		n, err := strconv.Atoi(q.Get(k))
 		if err != nil || n < lo || n > hi {
