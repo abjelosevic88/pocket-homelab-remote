@@ -220,16 +220,18 @@ export default function Connect() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const portrait = host.clientHeight > host.clientWidth
     // a phone held upright still gets a landscape desktop; a computer gets its window's size
-    const w = touch && portrait ? 1280 : Math.round(host.clientWidth * (m.protocol === 'ssh' ? 1 : dpr))
-    const h = touch && portrait ? 800 : Math.round(host.clientHeight * (m.protocol === 'ssh' ? 1 : dpr))
-    const q = new URLSearchParams({ ticket: r.ticket, width: String(w), height: String(h), dpi: String(Math.round(96 * (m.protocol === 'ssh' || (touch && portrait) ? 1 : dpr))), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    // in screen pixels, so a Retina screen draws the terminal and the desktop sharp
+    // instead of stretching 96 DPI pixels 2x (guacd sizes the terminal's font by the dpi)
+    const w = touch && portrait ? 1280 : Math.round(host.clientWidth * dpr)
+    const h = touch && portrait ? 800 : Math.round(host.clientHeight * dpr)
+    const q = new URLSearchParams({ ticket: r.ticket, width: String(w), height: String(h), dpi: String(Math.round(96 * (touch && portrait ? 1 : dpr))), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     client.connect(q.toString())
   }, [m, teardown, touch, rescale])
 
   useEffect(() => { if (m && phase === 'starting') connect() }, [m]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => teardown(), [teardown])
 
-  // follow the window: rescale, and ask Remote Desktop for the new size
+  // follow the window: rescale, and ask Remote Desktop (or the terminal) for the new size
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -237,7 +239,7 @@ export default function Connect() {
     const ro = new ResizeObserver(() => {
       rescale()
       window.clearTimeout(t)
-      t = window.setTimeout(() => { if (m?.protocol === 'rdp' && m.options.resize && !touch && clientRef.current) { const dpr = Math.min(window.devicePixelRatio || 1, 2); clientRef.current.sendSize(Math.round(host.clientWidth * dpr), Math.round(host.clientHeight * dpr)) } }, 400)
+      t = window.setTimeout(() => { if ((m?.protocol === 'ssh' || (m?.protocol === 'rdp' && m.options.resize)) && !touch && clientRef.current) { const dpr = Math.min(window.devicePixelRatio || 1, 2); clientRef.current.sendSize(Math.round(host.clientWidth * dpr), Math.round(host.clientHeight * dpr)) } }, 400)
     })
     ro.observe(host)
     return () => { ro.disconnect(); window.clearTimeout(t) }
