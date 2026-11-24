@@ -5,7 +5,7 @@ import { useApp } from '../lib/app-context'
 import { fmtBytes, fmtDateTime } from '../lib/format'
 import type { FileEntry, Listing, Machine } from '../lib/types'
 import { Icon } from './icons'
-import { Loading, MenuButton, Switch, useToast } from './ui'
+import { Confirm, Loading, MenuButton, Switch, useToast } from './ui'
 
 const enc = encodeURIComponent
 
@@ -21,6 +21,7 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
   const [up, setUp] = useState<{ name: string; pct: number } | null>(null)
   const input = useRef<HTMLInputElement>(null)
   // drag and drop: '' = over the folder shown, a path = over that folder's row
+  const [del, setDel] = useState<FileEntry | null>(null)
   const [drop, setDrop] = useState<string | null>(null)
   const depth = useRef(0)
   const pathRef = useRef(path)
@@ -46,6 +47,14 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
       const r = await api.post<{ ok: boolean; message?: string; error?: string }>(`${V1}/machines/${machine.id}/files/save`, { path: f.path })
       toast(r.ok ? r.message! : r.error!, r.ok ? 'ok' : 'err')
     } catch (e) { toast((e as Error).message, 'err') }
+  }
+  const remove = async (f: FileEntry) => {
+    setDel(null)
+    try {
+      await api.del(`${V1}/machines/${machine.id}/files?path=${enc(f.path)}`)
+      toast(`${f.name} deleted`)
+    } catch (e) { toast((e as Error).message, 'err') }
+    load(pathRef.current)
   }
   const upload = (files: FileList | File[] | null, to?: string) => {
     if (!files || !files.length || !list) return
@@ -125,14 +134,21 @@ export function FileBrowser({ machine, compact = false }: { machine: Machine; co
               : <a className="fb-name" href={`${V1}/machines/${machine.id}/files/download?path=${enc(f.path)}`}><Icon name="file" size={16} className="fb-ico" /><span className="ellipsis">{f.name}</span></a>}
             {!compact && <span className="fb-when muted small">{fmtDateTime(f.modified)}</span>}
             <span className="fb-size muted small tnum">{f.dir ? '' : fmtBytes(f.size)}</span>
-            {!f.dir ? <MenuButton label={`More for ${f.name}`} align="right" width={240} items={[
+            <MenuButton label={`More for ${f.name}`} align="right" width={240} items={f.dir ? [
+              { label: 'Open', icon: 'folder', onSelect: () => load(f.path) },
+              'sep',
+              { label: 'Delete…', icon: 'trash', danger: true, onSelect: () => setDel(f) },
+            ] : [
               { label: 'Download here', icon: 'download', onSelect: () => { window.location.href = `${V1}/machines/${machine.id}/files/download?path=${enc(f.path)}` } },
               { label: 'Open in the browser', icon: 'external', onSelect: () => window.open(`${V1}/machines/${machine.id}/files/download?inline=1&path=${enc(f.path)}`, '_blank') },
               { label: filesOK ? 'Save to Pocket Files' : 'Save to Pocket Files (set up first)', icon: 'archive', disabled: !filesOK, onSelect: () => save(f) },
-            ]}><Icon name="more" size={15} /></MenuButton> : <span className="fb-gap" />}
+              'sep',
+              { label: 'Delete…', icon: 'trash', danger: true, onSelect: () => setDel(f) },
+            ]}><Icon name="more" size={15} /></MenuButton>
           </div>
         ))}
       </div>}
+      {del && <Confirm confirmLabel="Delete" title={`Delete ${del.name}?`} message={del.dir ? `The folder and everything in it are deleted on ${machine.name}. This cannot be undone.` : `It is deleted on ${machine.name}. This cannot be undone.`} onCancel={() => setDel(null)} onConfirm={() => remove(del)} />}
       <div className="fb-foot row wrap">
         <Switch size="sm" checked={hidden} onChange={setHidden} label="Show hidden files" /><span className="small muted">Show hidden files</span>
         <span className="grow" />

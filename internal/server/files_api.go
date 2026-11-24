@@ -350,6 +350,47 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "saved": saved})
 }
 
+// handleDeleteFile removes a file, or a folder with everything in it, on the
+// computer. The root and the home folder itself are refused.
+func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	m, ok := s.machineFor(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	p := cleanRemote(r.URL.Query().Get("path"))
+	if p == "" || p == "/" || p == "." || path.Dir(p) == p {
+		writeErr(w, http.StatusBadRequest, "pick a file or folder to delete")
+		return
+	}
+	c, err := s.openSFTP(ctx, actorID(ctx), m)
+	if err != nil {
+		filesErr(w, err)
+		return
+	}
+	defer c.Close()
+	if home, err := c.sftp.Getwd(); err == nil && path.Clean(home) == p {
+		writeErr(w, http.StatusBadRequest, "the home folder itself cannot be deleted")
+		return
+	}
+	fi, err := c.sftp.Lstat(p)
+	if err != nil {
+		filesErr(w, fmt.Errorf("cannot find %s: %w", path.Base(p), err))
+		return
+	}
+	if fi.IsDir() {
+		err = c.sftp.RemoveAll(p)
+	} else {
+		err = c.sftp.Remove(p)
+	}
+	if err != nil {
+		filesErr(w, fmt.Errorf("cannot delete %s: %w", path.Base(p), err))
+		return
+	}
+	s.log.Info("remote: deleted on the computer", "machine", m.Name, "path", p, "folder", fi.IsDir())
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // freeRemote returns dir/name, or "name (2).ext", … when it is taken.
 func freeRemote(c *sftp.Client, dir, name string) string {
 	ext := path.Ext(name)

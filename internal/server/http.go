@@ -78,6 +78,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/machines/{id}/files/download", s.handleDownloadFile)
 			r.Post("/machines/{id}/files/upload", s.handleUploadFile)
 			r.Post("/machines/{id}/files/save", s.handleSaveToFiles)
+			r.Delete("/machines/{id}/files", s.handleDeleteFile)
 
 			// the session log
 			r.Get("/sessions", s.handleListSessions)
