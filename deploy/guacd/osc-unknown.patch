@@ -1,0 +1,46 @@
+--- a/src/terminal/terminal/terminal-handlers.h	2026-11-26 12:11:40.460079775 +0100
++++ b/src/terminal/terminal/terminal-handlers.h	2026-11-26 12:11:40.476298366 +0100
+@@ -200,6 +200,12 @@
+ int guac_terminal_osc(guac_terminal* term, unsigned char c);
+ 
+ /**
++ * Skips the text of an OSC sequence guacd does not handle, up to its
++ * terminator.
++ */
++int guac_terminal_unknown_osc(guac_terminal* term, unsigned char c);
++
++/**
+  * Handles terminal control function sequences initiated with "ESC #".
+  *
+  * @param term
+--- a/src/terminal/terminal-handlers.c	2026-11-26 12:11:40.459057231 +0100
++++ b/src/terminal/terminal-handlers.c	2026-11-26 12:11:40.476215699 +0100
+@@ -1560,6 +1560,17 @@
+ 
+ }
+ 
++int guac_terminal_unknown_osc(guac_terminal* term, unsigned char c) {
++
++    /* Swallow the text of an OSC guacd does not act on (icon name, current
++     * directory, hyperlinks...) until ECMA-48 ST or BEL, as newer guacd does */
++    if (c == 0x9C || c == 0x5C || c == 0x07)
++        term->char_handler = guac_terminal_echo;
++
++    return 0;
++
++}
++
+ int guac_terminal_osc(guac_terminal* term, unsigned char c) {
+ 
+     static int operation = 0;
+@@ -1599,6 +1610,10 @@
+         else if (operation == 4)
+             term->char_handler = guac_terminal_xterm_palette;
+ 
++        /* Unknown OSC */
++        else
++            term->char_handler = guac_terminal_unknown_osc;
++
+         /* Reset parameter for next OSC */
+         operation = 0;
+ 
