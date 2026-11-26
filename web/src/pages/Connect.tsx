@@ -77,6 +77,8 @@ export default function Connect() {
   const heldMods = useRef<number[]>([])
   const pressed = useRef(new Set<number>())
   const phaseRef = useRef(phase); phaseRef.current = phase
+  const remoteClipRef = useRef(remoteClip); remoteClipRef.current = remoteClip
+  const offPaste = useRef<(() => void) | null>(null)
 
   // settings can arrive just after the first render (a direct link to a session)
   const synced = useRef(false)
@@ -117,6 +119,7 @@ export default function Connect() {
   const teardown = useCallback(() => {
     const kb = kbRef.current
     if (kb) { kb.onkeydown = null; kb.onkeyup = null; kb.reset() }
+    offPaste.current?.(); offPaste.current = null
     clientRef.current?.disconnect()
     clientRef.current = null
     sinkRef.current?.getElement().remove()
@@ -179,8 +182,53 @@ export default function Connect() {
       const a = document.activeElement as HTMLElement | null
       return (!!a && a !== sink.getElement() && !!a.closest('input, textarea, select, [contenteditable="true"]')) || !!document.querySelector('.modal-backdrop, .menu')
     }
+    // Copy and paste with this device's own keys. The terminal (guacd) pastes its own
+    // clipboard on Cmd+V or Ctrl+Shift+V, and a desktop pastes its own, so the shortcut
+    // lets the browser paste first: the text on this device's clipboard goes to the
+    // computer's clipboard, then the keys follow. Cmd+V towards Windows or Linux
+    // becomes Ctrl+V there. Selecting text in the terminal copies it (guacd), and
+    // Cmd+C or Ctrl+Shift+C puts that here.
+    const terminal = m.protocol === 'ssh'
+    const held = (...ks: number[]) => ks.filter(k => pressed.current.has(k))
+    let pasteKey: number | null = null, pasteTimer = 0
+    const finishPaste = (text: string) => {
+      const ks = pasteKey
+      if (ks === null) return
+      pasteKey = null; window.clearTimeout(pasteTimer)
+      if (text) { const w = new Guacamole.StringWriter(client.createClipboardStream('text/plain')); w.sendText(text); w.sendEnd() }
+      const meta = held(0xffe7, 0xffe8)
+      if (meta.length && !terminal && m.kind !== 'mac') {
+        // Ctrl goes down before the Windows key comes up, so Windows opens no Start menu
+        client.sendKeyEvent(1, KEY.ctrl)
+        meta.forEach(k => client.sendKeyEvent(0, k))
+        client.sendKeyEvent(1, 0x76); client.sendKeyEvent(0, 0x76)
+        client.sendKeyEvent(0, KEY.ctrl)
+      } else { client.sendKeyEvent(1, ks); client.sendKeyEvent(0, ks) }
+    }
+    const onPaste = (e: ClipboardEvent) => {
+      if (pasteKey === null) return
+      e.preventDefault(); e.stopPropagation()
+      finishPaste(e.clipboardData?.getData('text/plain') || '')
+    }
+    document.addEventListener('paste', onPaste, true)
+    offPaste.current = () => { document.removeEventListener('paste', onPaste, true); window.clearTimeout(pasteTimer) }
+
     kb.onkeydown = ks => {
       if (uiFocused()) return true
+      const meta = held(0xffe7, 0xffe8).length > 0, ctrl = held(KEY.ctrl, 0xffe4).length > 0
+      if ((meta && (ks === 0x76 || ks === 0x56)) || (ctrl && ks === 0x56) || (ctrl && ks === 0x76 && !terminal)) {
+        pasteKey = ks
+        window.clearTimeout(pasteTimer)
+        // no paste event (nothing pasteable here): the computer pastes what it already has
+        pasteTimer = window.setTimeout(() => finishPaste(''), 400)
+        return true
+      }
+      if (terminal && ((meta && (ks === 0x63 || ks === 0x43)) || (ctrl && ks === 0x43))) {
+        const t = remoteClipRef.current
+        if (t) copyText(t).then(ok => { toast(ok ? 'Copied' : 'Could not copy', ok ? 'ok' : 'err'); if (!touch) sinkRef.current?.focus() })
+        else toast('Select text in the terminal first')
+        return false
+      }
       pressed.current.add(ks)
       const p = pressed.current
       if ((p.has(KEY.ctrl) || p.has(0xffe4)) && (p.has(KEY.alt) || p.has(0xffea)) && (p.has(KEY.shift) || p.has(0xffe2))) {
@@ -208,7 +256,7 @@ export default function Connect() {
       rd.onend = () => setRemoteClip(t)
     }
     client.onstatechange = s => {
-      if (s === CONNECTED) { setPhase('connected'); rescale(); setTimeout(() => setBarShown(false), 2500) }
+      if (s === CONNECTED) { setPhase('connected'); rescale(); setTimeout(() => setBarShown(false), 2500); if (!touch) sink.focus() }
       if (s === DISCONNECTED && phaseRef.current !== 'ended') setPhase('ended')
     }
     client.onerror = st => { setError(statusText(st.code, st.message, m)); setPhase('ended') }
@@ -355,7 +403,8 @@ export default function Connect() {
         </div>
       )}
 
-      <div ref={hostRef} className={`rs-host ${zoom === 'fit' ? 'fit' : 'zoomed'}`} onClick={() => { if (touch && phase === 'connected') sinkRef.current?.getElement().blur() }}>
+      <div ref={hostRef} className={`rs-host ${zoom === 'fit' ? 'fit' : 'zoomed'}`} onClick={() => { if (touch && phase === 'connected') sinkRef.current?.getElement().blur() }}
+        onMouseDown={() => { if (!touch && phase === 'connected') sinkRef.current?.focus() }}>
         <div ref={screenRef} className="rs-screen" />
       </div>
 
