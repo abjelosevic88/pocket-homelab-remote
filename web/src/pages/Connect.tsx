@@ -164,6 +164,9 @@ export default function Connect() {
       scr.onEach(['mousedown', 'mousemove', 'mouseup'], e => { if (modeRef.current === 'touch') send(e) })
       display.showCursor(true)
     }
+    // a click on the screen gives the keyboard back to the session (Guacamole.Mouse stops
+    // the event, so this listens on the screen itself rather than through React)
+    if (!touch) el.addEventListener('mousedown', () => { const f = sinkRef.current?.getElement(); if (f && document.activeElement !== f) f.focus() })
     const mouse = new Guacamole.Mouse(el)
     mouse.onEach(['mousedown', 'mousemove', 'mouseup'], e => client.sendMouseState(e.state, true))
     if (!touch) {
@@ -190,20 +193,27 @@ export default function Connect() {
     // Cmd+C or Ctrl+Shift+C puts that here.
     const terminal = m.protocol === 'ssh'
     const held = (...ks: number[]) => ks.filter(k => pressed.current.has(k))
-    let pasteKey: number | null = null, pasteTimer = 0
+    // A Mac app's web view hands over the paste only after Cmd is let go, so key
+    // releases wait while a paste is on its way: the computer still sees Cmd (or Ctrl)
+    // held when the V arrives.
+    let pasteKey: number | null = null, pasteTimer = 0, pasteMeta: number[] = [], heldUps: number[] = []
     const finishPaste = (text: string) => {
       const ks = pasteKey
       if (ks === null) return
       pasteKey = null; window.clearTimeout(pasteTimer)
       if (text) { const w = new Guacamole.StringWriter(client.createClipboardStream('text/plain')); w.sendText(text); w.sendEnd() }
-      const meta = held(0xffe7, 0xffe8)
-      if (meta.length && !terminal && m.kind !== 'mac') {
+      const ups = heldUps; heldUps = []
+      if (pasteMeta.length && !terminal && m.kind !== 'mac') {
         // Ctrl goes down before the Windows key comes up, so Windows opens no Start menu
         client.sendKeyEvent(1, KEY.ctrl)
-        meta.forEach(k => client.sendKeyEvent(0, k))
+        pasteMeta.forEach(k => client.sendKeyEvent(0, k))
         client.sendKeyEvent(1, 0x76); client.sendKeyEvent(0, 0x76)
         client.sendKeyEvent(0, KEY.ctrl)
-      } else { client.sendKeyEvent(1, ks); client.sendKeyEvent(0, ks) }
+        ups.filter(k => !pasteMeta.includes(k)).forEach(k => client.sendKeyEvent(0, k))
+      } else {
+        client.sendKeyEvent(1, ks); client.sendKeyEvent(0, ks)
+        ups.forEach(k => client.sendKeyEvent(0, k))
+      }
     }
     const onPaste = (e: ClipboardEvent) => {
       if (pasteKey === null) return
@@ -218,6 +228,10 @@ export default function Connect() {
       const meta = held(0xffe7, 0xffe8).length > 0, ctrl = held(KEY.ctrl, 0xffe4).length > 0
       if ((meta && (ks === 0x76 || ks === 0x56)) || (ctrl && ks === 0x56) || (ctrl && ks === 0x76 && !terminal)) {
         pasteKey = ks
+        pasteMeta = held(0xffe7, 0xffe8)
+        // the paste lands in the focused field: make that the hidden input, whatever had focus
+        const f = sink.getElement()
+        if (document.activeElement !== f) f.focus()
         window.clearTimeout(pasteTimer)
         // no paste event (nothing pasteable here): the computer pastes what it already has
         pasteTimer = window.setTimeout(() => finishPaste(''), 400)
@@ -244,6 +258,7 @@ export default function Connect() {
     kb.onkeyup = ks => {
       if (uiFocused()) return
       pressed.current.delete(ks)
+      if (pasteKey !== null) { if (ks !== pasteKey) heldUps.push(ks); return }
       client.sendKeyEvent(0, ks)
       if (heldMods.current.length) { [...heldMods.current].reverse().forEach(k => client.sendKeyEvent(0, k)); heldMods.current = [] }
     }
@@ -403,8 +418,7 @@ export default function Connect() {
         </div>
       )}
 
-      <div ref={hostRef} className={`rs-host ${zoom === 'fit' ? 'fit' : 'zoomed'}`} onClick={() => { if (touch && phase === 'connected') sinkRef.current?.getElement().blur() }}
-        onMouseDown={() => { if (!touch && phase === 'connected') sinkRef.current?.focus() }}>
+      <div ref={hostRef} className={`rs-host ${zoom === 'fit' ? 'fit' : 'zoomed'}`} onClick={() => { if (touch && phase === 'connected') sinkRef.current?.getElement().blur() }}>
         <div ref={screenRef} className="rs-screen" />
       </div>
 
